@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
 """
-Fixed parallel processor with proper percentile baseline calculation
-
-DEPRECATED: This module is deprecated in favor of parallel_xclim_processor_unified.py
-Please use the unified processor with use_fixed_baseline=True for equivalent functionality.
+Unified parallel processor for NEX-GDDP climate data with xclim indicators.
+Supports both fixed baseline and period-specific percentile calculations.
 """
-
-import warnings
-warnings.warn(
-    "parallel_xclim_processor_fixed.py is deprecated. "
-    "Please use parallel_xclim_processor_unified.py with use_fixed_baseline=True. "
-    "See MIGRATION_GUIDE.md for details.",
-    DeprecationWarning,
-    stacklevel=2
-)
 
 import xarray as xr
 import geopandas as gpd
@@ -27,46 +16,86 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from functools import partial
+from typing import Optional, Tuple, List, Dict, Union
 
 warnings.filterwarnings('ignore')
 
-# Import the parallel processor from archive
+# Import the base parallel processor
 import sys
 sys.path.append('../archive')
 from parallel_nex_gddp_processor import ParallelNEXGDDP_CountyProcessor
 
-class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
+
+class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
     """
-    Fixed parallel processor with proper percentile baseline
+    Unified parallel processor with flexible percentile baseline options.
+    
+    This processor combines features from both the original and fixed baseline
+    versions, allowing users to choose their percentile calculation approach.
     """
     
-    def __init__(self, counties_shapefile_path, base_data_path, 
-                 baseline_period=(1980, 2010)):
+    def __init__(self, 
+                 counties_shapefile_path: str, 
+                 base_data_path: str, 
+                 baseline_period: Optional[Tuple[int, int]] = None,
+                 use_fixed_baseline: bool = True):
         """
-        Initialize with baseline period for percentile calculation
+        Initialize the parallel xclim processor.
         
-        Parameters:
-        -----------
-        baseline_period : tuple
-            (start_year, end_year) for calculating percentile thresholds
+        Parameters
+        ----------
+        counties_shapefile_path : str
+            Path to the US counties shapefile
+        base_data_path : str
+            Base path to NEX-GDDP climate data
+        baseline_period : tuple, optional
+            (start_year, end_year) for calculating percentile thresholds.
+            If None and use_fixed_baseline=True, defaults to (1980, 2010).
+            If None and use_fixed_baseline=False, uses the historical period.
+        use_fixed_baseline : bool, default=True
+            If True, calculates percentiles from a fixed baseline period.
+            If False, calculates percentiles from the analysis period itself.
         """
         super().__init__(counties_shapefile_path, base_data_path)
-        self.baseline_period = baseline_period
-        print(f"Baseline period for percentiles: {baseline_period[0]}-{baseline_period[1]}")
-    
-    def calculate_baseline_percentiles(self, county, variables=['tasmax', 'tasmin']):
-        """
-        Calculate percentile thresholds from baseline historical period
         
-        Returns:
-        --------
+        self.use_fixed_baseline = use_fixed_baseline
+        
+        if use_fixed_baseline:
+            self.baseline_period = baseline_period or (1980, 2010)
+            print(f"Using fixed baseline period for percentiles: {self.baseline_period[0]}-{self.baseline_period[1]}")
+        else:
+            self.baseline_period = None
+            print("Using period-specific percentiles (calculated from each analysis period)")
+    
+    def calculate_baseline_percentiles(self, 
+                                     county: pd.Series, 
+                                     variables: List[str] = ['tasmax', 'tasmin'],
+                                     period: Optional[Tuple[int, int]] = None) -> Dict:
+        """
+        Calculate percentile thresholds for a county.
+        
+        Parameters
+        ----------
+        county : pd.Series
+            County data with geometry
+        variables : list
+            Variables to calculate percentiles for
+        period : tuple, optional
+            (start_year, end_year) for baseline. If None, uses self.baseline_period
+            
+        Returns
+        -------
         dict
             Dictionary with day-of-year percentile thresholds
         """
-        print(f"  Calculating baseline percentiles for {county['NAME']}...")
+        period = period or self.baseline_period
+        if period is None:
+            raise ValueError("No baseline period specified")
+            
+        print(f"  Calculating percentiles for {county['NAME']} from {period[0]}-{period[1]}...")
         
         thresholds = {}
-        baseline_start, baseline_end = self.baseline_period
+        baseline_start, baseline_end = period
         
         for var in variables:
             file_pattern = self.base_path / var / 'historical' / f"{var}_*.nc"
@@ -83,7 +112,7 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
                             baseline_files.append(f)
                         break
             
-            if len(baseline_files) >= 10:  # Need at least 10 years for good percentiles
+            if len(baseline_files) >= 10:  # Need at least 10 years for robust percentiles
                 # Load baseline data
                 ds = xr.open_mfdataset(baseline_files, combine='by_coords')
                 
@@ -133,9 +162,23 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
         
         return thresholds
     
-    def calculate_xclim_indicators_for_county(self, county_data, thresholds):
+    def calculate_xclim_indicators_for_county(self, 
+                                            county_data: Dict, 
+                                            thresholds: Dict) -> Dict:
         """
-        Calculate xclim indicators using baseline thresholds
+        Calculate xclim indicators for a single county's data.
+        
+        Parameters
+        ----------
+        county_data : dict
+            Dictionary with time series data for all variables
+        thresholds : dict
+            Pre-calculated thresholds (percentiles, etc.)
+            
+        Returns
+        -------
+        dict
+            Annual indicator values
         """
         # Extract data
         tas_mean = county_data['tas']
@@ -163,6 +206,8 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
         # 1. tx90p - using baseline thresholds
         if 'tasmax_p90_doy' in thresholds:
             indicators['tx90p'] = atmos.tx90p(tasmax_da, thresholds['tasmax_p90_doy'], freq='YS')
+        elif 'tasmax_p90' in thresholds:
+            indicators['tx90p'] = atmos.tx90p(tasmax_da, thresholds['tasmax_p90'], freq='YS')
         
         # 2. tx_days_above 90°F (305.37 K)
         indicators['tx_days_above_90F'] = atmos.tx_days_above(tasmax_da, thresh='305.37 K', freq='YS')
@@ -170,6 +215,8 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
         # 3. tn10p - using baseline thresholds
         if 'tasmin_p10_doy' in thresholds:
             indicators['tn10p'] = atmos.tn10p(tasmin_da, thresholds['tasmin_p10_doy'], freq='YS')
+        elif 'tasmin_p10' in thresholds:
+            indicators['tn10p'] = atmos.tn10p(tasmin_da, thresholds['tasmin_p10'], freq='YS')
         
         # 4. tn_days_below 32°F (273.15 K)
         indicators['tn_days_below_32F'] = atmos.tn_days_below(tasmin_da, thresh='273.15 K', freq='YS')
@@ -187,10 +234,35 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
         
         return indicators
     
-    def process_county_chunk_with_xclim(self, counties_chunk, scenarios, variables, 
-                                       historical_period, future_period, chunk_id):
+    def process_county_chunk_with_xclim(self, 
+                                       counties_chunk: pd.DataFrame,
+                                       scenarios: List[str],
+                                       variables: List[str],
+                                       historical_period: Tuple[int, int],
+                                       future_period: Tuple[int, int],
+                                       chunk_id: int) -> List[Dict]:
         """
-        Process a chunk of counties with fixed baseline percentiles
+        Process a chunk of counties with xclim indicators.
+        
+        Parameters
+        ----------
+        counties_chunk : pd.DataFrame
+            Subset of counties to process
+        scenarios : list
+            Climate scenarios to process
+        variables : list
+            Climate variables to process
+        historical_period : tuple
+            (start_year, end_year) for historical analysis
+        future_period : tuple
+            (start_year, end_year) for future projections
+        chunk_id : int
+            Chunk identifier for logging
+            
+        Returns
+        -------
+        list
+            List of dictionaries with results
         """
         print(f"Processing chunk {chunk_id} with {len(counties_chunk)} counties")
         
@@ -202,8 +274,13 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
             
             print(f"  Processing {name} (GEOID: {geoid})")
             
-            # First, calculate baseline percentile thresholds
-            thresholds = self.calculate_baseline_percentiles(county)
+            # Calculate baseline percentiles
+            if self.use_fixed_baseline:
+                # Use fixed baseline period for all scenarios
+                thresholds = self.calculate_baseline_percentiles(county)
+            else:
+                # Will calculate period-specific thresholds
+                thresholds = {}
             
             # Process each scenario
             for scenario in scenarios:
@@ -214,6 +291,12 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
                     start_year, end_year = historical_period
                 else:
                     start_year, end_year = future_period
+                
+                # If not using fixed baseline, calculate period-specific thresholds
+                if not self.use_fixed_baseline and scenario == 'historical':
+                    thresholds = self.calculate_baseline_percentiles(
+                        county, period=historical_period
+                    )
                 
                 # Load data for all variables
                 for var in variables:
@@ -283,7 +366,7 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
                             elif ind_name == 'precip_accumulation':
                                 annual_result[ind_name + '_mm'] = float(ind_data.isel(time=i).values)
                             elif ind_name in ['tx90p', 'tn10p']:
-                                # Convert count to percentage (divide by 365 days * 100)
+                                # Convert count to percentage
                                 count = float(ind_data.isel(time=i).values)
                                 # Get the actual number of days in this year
                                 year_start = pd.Timestamp(f'{year}-01-01')
@@ -298,13 +381,32 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
         
         return results
     
-    def process_xclim_parallel(self, scenarios=['historical', 'ssp245'], 
-                              variables=['tas', 'tasmax', 'tasmin', 'pr'],
-                              historical_period=(1980, 2010),
-                              future_period=(2040, 2070),
-                              n_chunks=None):
+    def process_xclim_parallel(self, 
+                              scenarios: List[str] = ['historical', 'ssp245'], 
+                              variables: List[str] = ['tas', 'tasmax', 'tasmin', 'pr'],
+                              historical_period: Tuple[int, int] = (1980, 2010),
+                              future_period: Tuple[int, int] = (2040, 2070),
+                              n_chunks: Optional[int] = None) -> pd.DataFrame:
         """
-        Process all counties in parallel to calculate xclim indicators
+        Process all counties in parallel to calculate xclim indicators.
+        
+        Parameters
+        ----------
+        scenarios : list
+            Climate scenarios to process
+        variables : list
+            Climate variables to process
+        historical_period : tuple
+            (start_year, end_year) for historical analysis
+        future_period : tuple
+            (start_year, end_year) for future projections
+        n_chunks : int, optional
+            Number of parallel chunks. If None, uses min(cpu_count, 16)
+            
+        Returns
+        -------
+        pd.DataFrame
+            Results with annual indicator values for each county
         """
         if n_chunks is None:
             n_chunks = min(mp.cpu_count(), 16)
@@ -340,22 +442,30 @@ class ParallelXclimProcessorFixed(ParallelNEXGDDP_CountyProcessor):
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize processor with baseline period
-    processor = ParallelXclimProcessorFixed(
-        counties_shapefile_path="/home/mihiarc/repos/claude_climate/tl_2024_us_county/tl_2024_us_county.shp",
+    # Example 1: Using fixed baseline (recommended for climate change analysis)
+    processor_fixed = ParallelXclimProcessor(
+        counties_shapefile_path="../data/shapefiles/tl_2024_us_county.shp",
         base_data_path="/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM",
-        baseline_period=(1980, 2010)  # Standard 30-year baseline
+        baseline_period=(1980, 2010),  # Standard 30-year baseline
+        use_fixed_baseline=True
     )
     
-    # Process with proper baseline
-    df = processor.process_xclim_parallel(
+    # Example 2: Using period-specific baseline (for period comparison)
+    processor_period = ParallelXclimProcessor(
+        counties_shapefile_path="../data/shapefiles/tl_2024_us_county.shp",
+        base_data_path="/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM",
+        use_fixed_baseline=False
+    )
+    
+    # Process with either approach
+    df = processor_fixed.process_xclim_parallel(
         scenarios=['historical', 'ssp245'],
         variables=['tas', 'tasmax', 'tasmin', 'pr'],
-        historical_period=(2000, 2010),  # Can be different from baseline
+        historical_period=(2000, 2010),
         future_period=(2040, 2050),
-        n_chunks=4
+        n_chunks=16
     )
     
     # Save results
-    df.to_csv("parallel_xclim_fixed_baseline.csv", index=False)
-    print(f"Saved {len(df)} records with fixed baseline percentiles")
+    df.to_csv("climate_indicators_unified.csv", index=False)
+    print(f"Saved {len(df)} records")

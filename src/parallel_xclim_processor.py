@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 """
 Parallel processor with xclim indicators integration
+
+DEPRECATED: This module is deprecated in favor of parallel_xclim_processor_unified.py
+Please use the unified processor which supports both fixed and period-specific baselines.
 """
+
+import warnings
+warnings.warn(
+    "parallel_xclim_processor.py is deprecated. "
+    "Please use parallel_xclim_processor_unified.py instead. "
+    "See MIGRATION_GUIDE.md for details.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import xarray as xr
 import geopandas as gpd
