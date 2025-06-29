@@ -83,6 +83,49 @@ def sample_county_info():
 
 
 @pytest.fixture
+def regional_test_counties():
+    """Counties from different US regions for comprehensive testing."""
+    return {
+        'conus': {
+            'geoid': '08109',
+            'name': 'Saguache County',
+            'state': '08',
+            'description': 'High altitude Colorado county'
+        },
+        'alaska': {
+            'geoid': '02220', 
+            'name': 'Sitka',
+            'state': '02',
+            'description': 'Southeast Alaska'
+        },
+        'hawaii': {
+            'geoid': '15003',
+            'name': 'Honolulu',
+            'state': '15',
+            'description': 'Main Hawaiian island'
+        },
+        'puerto_rico': {
+            'geoid': '72115',
+            'name': 'Quebradillas',
+            'state': '72',
+            'description': 'Caribbean territory'
+        },
+        'virgin_islands': {
+            'geoid': '78030',
+            'name': 'St. Thomas',
+            'state': '78',
+            'description': 'Caribbean island territory'
+        },
+        'guam': {
+            'geoid': '66010',
+            'name': 'Guam',
+            'state': '66',
+            'description': 'Western Pacific territory'
+        }
+    }
+
+
+@pytest.fixture
 def expected_indicators():
     """Expected climate indicators in results."""
     return [
