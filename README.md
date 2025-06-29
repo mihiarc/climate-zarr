@@ -39,19 +39,42 @@ uv pip install xarray geopandas regionmask xclim pandas numpy
 
 ```
 claude_climate/
-├── src/                           # Main processing scripts
-│   ├── parallel_xclim_processor.py        # Parallel processor with fixed baseline
+├── src/                                    # Main processing scripts
+│   ├── climate_indicator_calculator.py     # Core climate calculations (no parallelism)
+│   ├── parallel_processor.py              # Handles all parallel processing
+│   ├── parallel_xclim_processor.py        # Backward-compatible wrapper
 │   └── xclim_indicators_processor.py      # Sequential processor
-├── tests/                         # Test scripts
+├── tests/                                 # Test scripts
+│   ├── test_modular_processor.py         # Tests for modular design
 │   ├── test_fixed_baseline.py
 │   ├── test_xclim_indicators.py
 │   └── ...
 ├── data/
-│   └── shapefiles/               # US county boundary files
-├── results/                      # Output CSV files
-├── archive/                      # Archived/deprecated scripts
+│   └── shapefiles/                       # US county boundary files
+├── results/                              # Output CSV files
+├── archive/                              # Archived/deprecated scripts
 └── README.md
 ```
+
+## Architecture
+
+The project uses a modular design that separates climate calculations from parallel processing:
+
+1. **`climate_indicator_calculator.py`**: Core calculator that handles all climate science logic
+   - Baseline percentile calculations
+   - Climate indicator calculations using xclim
+   - Data extraction and spatial averaging
+   - No parallel processing code
+
+2. **`parallel_processor.py`**: Manages all parallel processing
+   - County batch creation and distribution
+   - Worker process management
+   - Progress tracking and error handling
+   - Result aggregation
+
+3. **`parallel_xclim_processor.py`**: Backward-compatible wrapper
+   - Maintains the original API
+   - Uses the modular components internally
 
 ## Usage
 
@@ -80,11 +103,43 @@ df = processor.process_xclim_parallel(
 df.to_csv("climate_indicators.csv", index=False)
 ```
 
+### Using the Modular API
+
+The new modular design allows more flexibility:
+
+```python
+from src.parallel_processor import ParallelClimateProcessor
+
+# Initialize processor
+processor = ParallelClimateProcessor(
+    counties_shapefile_path="data/shapefiles/tl_2024_us_county.shp",
+    base_data_path="/path/to/NEX-GDDP-data",
+    baseline_period=(1980, 2010)
+)
+
+# Process with progress tracking
+def progress_callback(completed, total, elapsed):
+    print(f"Progress: {completed}/{total} batches ({elapsed:.1f}s)")
+
+df = processor.process_parallel(
+    scenarios=['historical', 'ssp245'],
+    variables=['tas', 'tasmax', 'tasmin', 'pr'],
+    historical_period=(2005, 2014),
+    future_period=(2040, 2049),
+    n_workers=16,
+    progress_callback=progress_callback
+)
+```
+
 ### Testing
 
 Run the test scripts to verify functionality:
 
 ```bash
+# Test the modular design
+python tests/test_modular_processor.py
+
+# Test backward compatibility
 python tests/test_fixed_baseline.py
 ```
 
