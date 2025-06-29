@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
 """
-Parallel processor with xclim indicators integration
-
-DEPRECATED: This module is deprecated in favor of parallel_xclim_processor_unified.py
-Please use the unified processor which supports both fixed and period-specific baselines.
+Parallel processor for NEX-GDDP climate data with xclim indicators.
+Uses fixed baseline period for percentile calculations as per climate science standards.
 """
-
-import warnings
-warnings.warn(
-    "parallel_xclim_processor.py is deprecated. "
-    "Please use parallel_xclim_processor_unified.py instead. "
-    "See MIGRATION_GUIDE.md for details.",
-    DeprecationWarning,
-    stacklevel=2
-)
 
 import xarray as xr
 import geopandas as gpd
@@ -27,32 +16,149 @@ import warnings
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
 from functools import partial
+from typing import Optional, Tuple, List, Dict, Union
 
 warnings.filterwarnings('ignore')
 
-# Import the parallel processor from archive
+# Import the base parallel processor
 import sys
-sys.path.append('./archive')
+sys.path.append('../archive')
 from parallel_nex_gddp_processor import ParallelNEXGDDP_CountyProcessor
+
 
 class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
     """
-    Extended parallel processor with xclim indicators
+    Parallel processor with xclim climate indicators and fixed baseline percentiles.
+    
+    This processor calculates climate extremes indices using a fixed historical
+    baseline period (default 1980-2010) for percentile thresholds, following
+    standard climate science practices for comparable metrics.
     """
     
-    def calculate_xclim_indicators_for_county(self, county_data, thresholds):
+    def __init__(self, 
+                 counties_shapefile_path: str, 
+                 base_data_path: str, 
+                 baseline_period: Tuple[int, int] = (1980, 2010)):
         """
-        Calculate xclim indicators for a single county's data
+        Initialize the parallel xclim processor.
         
-        Parameters:
-        -----------
+        Parameters
+        ----------
+        counties_shapefile_path : str
+            Path to the US counties shapefile
+        base_data_path : str
+            Base path to NEX-GDDP climate data
+        baseline_period : tuple, optional
+            (start_year, end_year) for calculating percentile thresholds.
+            Default is (1980, 2010) - standard 30-year climatological period.
+        """
+        super().__init__(counties_shapefile_path, base_data_path)
+        self.baseline_period = baseline_period
+        print(f"Baseline period for percentiles: {baseline_period[0]}-{baseline_period[1]}")
+    
+    def calculate_baseline_percentiles(self, 
+                                     county: pd.Series, 
+                                     variables: List[str] = ['tasmax', 'tasmin']) -> Dict:
+        """
+        Calculate percentile thresholds from the baseline historical period.
+        
+        Parameters
+        ----------
+        county : pd.Series
+            County data with geometry
+        variables : list
+            Variables to calculate percentiles for (tasmax, tasmin)
+            
+        Returns
+        -------
+        dict
+            Dictionary with day-of-year percentile thresholds
+        """
+        print(f"  Calculating baseline percentiles for {county['NAME']}...")
+        
+        thresholds = {}
+        baseline_start, baseline_end = self.baseline_period
+        
+        for var in variables:
+            file_pattern = self.base_path / var / 'historical' / f"{var}_*.nc"
+            files = list(file_pattern.parent.glob(file_pattern.name))
+            
+            # Filter files by baseline period
+            baseline_files = []
+            for f in files:
+                parts = f.stem.split('_')
+                for part in parts:
+                    if part.isdigit() and len(part) == 4:
+                        year = int(part)
+                        if baseline_start <= year <= baseline_end:
+                            baseline_files.append(f)
+                        break
+            
+            if len(baseline_files) >= 10:  # Need at least 10 years for robust percentiles
+                # Load baseline data
+                ds = xr.open_mfdataset(baseline_files, combine='by_coords')
+                
+                # Extract county data
+                county_bounds = county.geometry.bounds
+                lat_slice = slice(county_bounds[1] - 0.5, county_bounds[3] + 0.5)
+                
+                # Convert longitude if needed
+                lon_min = county_bounds[0]
+                lon_max = county_bounds[2]
+                if lon_min < 0:
+                    lon_min = lon_min % 360
+                if lon_max < 0:
+                    lon_max = lon_max % 360
+                lon_slice = slice(lon_min - 0.5, lon_max + 0.5)
+                
+                county_data = ds[var].sel(lat=lat_slice, lon=lon_slice)
+                
+                # Calculate spatial mean
+                weights = np.cos(np.deg2rad(county_data.lat))
+                county_mean = county_data.weighted(weights).mean(dim=['lat', 'lon'])
+                
+                # Compute to memory to avoid dask chunking issues
+                county_mean = county_mean.compute()
+                
+                # Add units
+                county_mean.attrs['units'] = 'K'
+                
+                # Calculate day-of-year percentiles
+                if var == 'tasmax':
+                    # Group by day of year and calculate 90th percentile
+                    tasmax_grouped = county_mean.groupby('time.dayofyear')
+                    thresholds['tasmax_p90_doy'] = tasmax_grouped.quantile(0.9, dim='time')
+                    thresholds['tasmax_p90_doy'].attrs['units'] = 'K'
+                    print(f"    Calculated tasmax 90th percentile from {len(baseline_files)} years")
+                
+                elif var == 'tasmin':
+                    # Group by day of year and calculate 10th percentile
+                    tasmin_grouped = county_mean.groupby('time.dayofyear')
+                    thresholds['tasmin_p10_doy'] = tasmin_grouped.quantile(0.1, dim='time')
+                    thresholds['tasmin_p10_doy'].attrs['units'] = 'K'
+                    print(f"    Calculated tasmin 10th percentile from {len(baseline_files)} years")
+                
+                ds.close()
+            else:
+                print(f"    WARNING: Only {len(baseline_files)} years available for {var} baseline")
+        
+        return thresholds
+    
+    def calculate_xclim_indicators_for_county(self, 
+                                            county_data: Dict, 
+                                            thresholds: Dict) -> Dict:
+        """
+        Calculate xclim indicators for a single county's data.
+        
+        Parameters
+        ----------
         county_data : dict
             Dictionary with time series data for all variables
         thresholds : dict
-            Pre-calculated thresholds (percentiles, etc.)
-        
-        Returns:
-        --------
+            Pre-calculated baseline thresholds
+            
+        Returns
+        -------
         dict
             Annual indicator values
         """
@@ -63,7 +169,6 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
         pr_mean = county_data['pr']
         
         # Create xarray DataArrays
-        # Use the time coordinate directly without converting (handles cftime)
         time_coord = county_data['time']
         
         tas_da = xr.DataArray(tas_mean, dims=['time'], coords={'time': time_coord})
@@ -80,40 +185,62 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
         # Calculate indicators
         indicators = {}
         
-        # 1. tx90p - using pre-calculated threshold
-        if 'tasmax_p90' in thresholds:
-            indicators['tx90p'] = atmos.tx90p(tasmax_da, thresholds['tasmax_p90'], freq='YS')
+        # 1. tx90p - Days exceeding 90th percentile of maximum temperature
+        if 'tasmax_p90_doy' in thresholds:
+            indicators['tx90p'] = atmos.tx90p(tasmax_da, thresholds['tasmax_p90_doy'], freq='YS')
         
-        # 2. tx_days_above 90°F (305.37 K)
+        # 2. tx_days_above - Days above 90°F (305.37 K)
         indicators['tx_days_above_90F'] = atmos.tx_days_above(tasmax_da, thresh='305.37 K', freq='YS')
         
-        # 3. tn10p - using pre-calculated threshold
-        if 'tasmin_p10' in thresholds:
-            indicators['tn10p'] = atmos.tn10p(tasmin_da, thresholds['tasmin_p10'], freq='YS')
+        # 3. tn10p - Days below 10th percentile of minimum temperature
+        if 'tasmin_p10_doy' in thresholds:
+            indicators['tn10p'] = atmos.tn10p(tasmin_da, thresholds['tasmin_p10_doy'], freq='YS')
         
-        # 4. tn_days_below 32°F (273.15 K)
+        # 4. tn_days_below - Days below 32°F (273.15 K) - frost days
         indicators['tn_days_below_32F'] = atmos.tn_days_below(tasmin_da, thresh='273.15 K', freq='YS')
         
-        # 5. tg_mean
+        # 5. tg_mean - Annual mean temperature
         indicators['tg_mean'] = atmos.tg_mean(tas_da, freq='YS')
         
-        # 6. wetdays - Days with precip > 25.4mm (0.000294 kg/m2/s)
-        indicators['days_precip_over_25.4mm'] = atmos.wetdays(
-            pr_da, thresh='0.000294 kg m-2 s-1', freq='YS'
-        )
+        # 6. wetdays - Days with precipitation > 25.4mm (1 inch)
+        indicators['days_precip_over_25.4mm'] = atmos.wetdays(pr_da, thresh='0.000294 kg m-2 s-1', freq='YS')
         
-        # 7. precip_accumulation
-        # Convert to mm/day first
+        # 7. precip_accumulation - Total annual precipitation
         pr_mm_day = pr_da * 86400
         pr_mm_day.attrs['units'] = 'mm/day'
         indicators['precip_accumulation'] = atmos.precip_accumulation(pr_mm_day, freq='YS')
         
         return indicators
     
-    def process_county_chunk_with_xclim(self, counties_chunk, scenarios, variables, 
-                                       historical_period, future_period, chunk_id):
+    def process_county_chunk_with_xclim(self, 
+                                       counties_chunk: pd.DataFrame,
+                                       scenarios: List[str],
+                                       variables: List[str],
+                                       historical_period: Tuple[int, int],
+                                       future_period: Tuple[int, int],
+                                       chunk_id: int) -> List[Dict]:
         """
-        Process a chunk of counties with xclim indicators
+        Process a chunk of counties with xclim indicators.
+        
+        Parameters
+        ----------
+        counties_chunk : pd.DataFrame
+            Subset of counties to process
+        scenarios : list
+            Climate scenarios to process
+        variables : list
+            Climate variables to process
+        historical_period : tuple
+            (start_year, end_year) for historical analysis
+        future_period : tuple
+            (start_year, end_year) for future projections
+        chunk_id : int
+            Chunk identifier for logging
+            
+        Returns
+        -------
+        list
+            List of dictionaries with results
         """
         print(f"Processing chunk {chunk_id} with {len(counties_chunk)} counties")
         
@@ -125,87 +252,8 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
             
             print(f"  Processing {name} (GEOID: {geoid})")
             
-            county_results = {
-                'GEOID': geoid,
-                'NAME': name,
-                'STATE': county.get('STATEFP', 'Unknown')
-            }
-            
-            # First, load historical data to calculate thresholds
-            hist_data = {}
-            hist_time = None
-            for var in variables:
-                file_pattern = self.base_path / var / 'historical' / f"{var}_*.nc"
-                files = list(file_pattern.parent.glob(file_pattern.name))
-                
-                # Filter files by year range
-                # Extract year from filename, handling version suffixes like _v1.1
-                hist_files = []
-                for f in files:
-                    parts = f.stem.split('_')
-                    # Find the year (4-digit number)
-                    for part in parts:
-                        if part.isdigit() and len(part) == 4:
-                            year = int(part)
-                            if historical_period[0] <= year <= historical_period[1]:
-                                hist_files.append(f)
-                            break
-                
-                if hist_files:
-                    ds = xr.open_mfdataset(hist_files, combine='by_coords')
-                    
-                    # Extract county data using mask
-                    county_bounds = county.geometry.bounds
-                    lat_slice = slice(county_bounds[1] - 0.5, county_bounds[3] + 0.5)
-                    
-                    # Convert longitude from -180/180 to 0/360 if needed
-                    lon_min = county_bounds[0]
-                    lon_max = county_bounds[2]
-                    if lon_min < 0:
-                        lon_min = lon_min % 360
-                    if lon_max < 0:
-                        lon_max = lon_max % 360
-                    lon_slice = slice(lon_min - 0.5, lon_max + 0.5)
-                    
-                    county_data = ds[var].sel(lat=lat_slice, lon=lon_slice)
-                    
-                    # Calculate spatial mean
-                    weights = np.cos(np.deg2rad(county_data.lat))
-                    county_mean = county_data.weighted(weights).mean(dim=['lat', 'lon'])
-                    
-                    hist_data[var] = county_mean.values
-                    if hist_time is None:
-                        hist_time = county_mean.time.values
-                    ds.close()
-            
-            # Calculate thresholds from historical data
-            # For percentile-based indicators, we need day-of-year thresholds
-            thresholds = {}
-            
-            # Create DataArrays from historical data for threshold calculation
-            if 'tasmax' in hist_data and len(hist_data['tasmax']) > 0 and hist_time is not None:
-                tasmax_hist_da = xr.DataArray(
-                    hist_data['tasmax'], 
-                    dims=['time'], 
-                    coords={'time': hist_time}
-                )
-                tasmax_hist_da.attrs['units'] = 'K'
-                # Group by day of year and calculate 90th percentile
-                tasmax_grouped = tasmax_hist_da.groupby('time.dayofyear')
-                thresholds['tasmax_p90'] = tasmax_grouped.quantile(0.9, dim='time')
-                thresholds['tasmax_p90'].attrs['units'] = 'K'
-            
-            if 'tasmin' in hist_data and len(hist_data['tasmin']) > 0 and hist_time is not None:
-                tasmin_hist_da = xr.DataArray(
-                    hist_data['tasmin'],
-                    dims=['time'],
-                    coords={'time': hist_time}
-                )
-                tasmin_hist_da.attrs['units'] = 'K'
-                # Group by day of year and calculate 10th percentile
-                tasmin_grouped = tasmin_hist_da.groupby('time.dayofyear')
-                thresholds['tasmin_p10'] = tasmin_grouped.quantile(0.1, dim='time')
-                thresholds['tasmin_p10'].attrs['units'] = 'K'
+            # Calculate baseline percentiles (same for all scenarios)
+            thresholds = self.calculate_baseline_percentiles(county)
             
             # Process each scenario
             for scenario in scenarios:
@@ -223,11 +271,9 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
                     files = list(file_pattern.parent.glob(file_pattern.name))
                     
                     # Filter files by year range
-                    # Extract year from filename, handling version suffixes like _v1.1
                     scenario_files = []
                     for f in files:
                         parts = f.stem.split('_')
-                        # Find the year (4-digit number)
                         for part in parts:
                             if part.isdigit() and len(part) == 4:
                                 year = int(part)
@@ -238,11 +284,11 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
                     if scenario_files:
                         ds = xr.open_mfdataset(scenario_files, combine='by_coords')
                         
-                        # Extract county data using corrected bounds
+                        # Extract county data
                         county_bounds = county.geometry.bounds
                         lat_slice = slice(county_bounds[1] - 0.5, county_bounds[3] + 0.5)
                         
-                        # Convert longitude from -180/180 to 0/360 if needed
+                        # Convert longitude if needed
                         lon_min = county_bounds[0]
                         lon_max = county_bounds[2]
                         if lon_min < 0:
@@ -265,13 +311,10 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
                     indicators = self.calculate_xclim_indicators_for_county(scenario_data, thresholds)
                     
                     # Extract annual values
-                    # Handle cftime objects
                     time_values = indicators['tg_mean'].time.values
                     if hasattr(time_values[0], 'year'):
-                        # cftime objects
                         years = [t.year for t in time_values]
                     else:
-                        # Standard datetime
                         years = pd.to_datetime(time_values).year.tolist()
                     
                     for i, year in enumerate(years):
@@ -286,32 +329,62 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
                         # Add indicator values
                         for ind_name, ind_data in indicators.items():
                             if ind_name == 'tg_mean':
-                                # Convert temperature from K to C
+                                # Convert from Kelvin to Celsius
                                 annual_result[ind_name + '_C'] = float(ind_data.isel(time=i).values) - 273.15
                             elif ind_name == 'precip_accumulation':
-                                # Already in mm from the calculation
+                                # Already in mm
                                 annual_result[ind_name + '_mm'] = float(ind_data.isel(time=i).values)
                             elif ind_name in ['tx90p', 'tn10p']:
-                                annual_result[ind_name + '_percent'] = float(ind_data.isel(time=i).values)
+                                # Convert count to percentage
+                                count = float(ind_data.isel(time=i).values)
+                                # Get the actual number of days in this year
+                                year_start = pd.Timestamp(f'{year}-01-01')
+                                year_end = pd.Timestamp(f'{year}-12-31')
+                                n_days = (year_end - year_start).days + 1
+                                percentage = (count / n_days) * 100
+                                annual_result[ind_name + '_percent'] = percentage
                             else:
+                                # Keep as count (days)
                                 annual_result[ind_name] = float(ind_data.isel(time=i).values)
                         
                         results.append(annual_result)
         
         return results
     
-    def process_xclim_parallel(self, scenarios=['historical', 'ssp245'], 
-                              variables=['tas', 'tasmax', 'tasmin', 'pr'],
-                              historical_period=(1980, 2010),
-                              future_period=(2040, 2070),
-                              n_chunks=None):
+    def process_xclim_parallel(self, 
+                              scenarios: List[str] = ['historical', 'ssp245'], 
+                              variables: List[str] = ['tas', 'tasmax', 'tasmin', 'pr'],
+                              historical_period: Tuple[int, int] = (1980, 2010),
+                              future_period: Tuple[int, int] = (2040, 2070),
+                              n_chunks: Optional[int] = None) -> pd.DataFrame:
         """
-        Process all counties in parallel to calculate xclim indicators
+        Process all counties in parallel to calculate xclim indicators.
+        
+        Parameters
+        ----------
+        scenarios : list
+            Climate scenarios to process
+        variables : list
+            Climate variables to process
+        historical_period : tuple
+            (start_year, end_year) for historical analysis
+        future_period : tuple
+            (start_year, end_year) for future projections
+        n_chunks : int, optional
+            Number of parallel chunks. If None, uses min(cpu_count, 16)
+            
+        Returns
+        -------
+        pd.DataFrame
+            Results with annual indicator values for each county
         """
         if n_chunks is None:
             n_chunks = min(mp.cpu_count(), 16)
         
         print(f"Processing {len(self.counties)} counties using {n_chunks} parallel chunks")
+        print(f"Historical period: {historical_period[0]}-{historical_period[1]}")
+        print(f"Future period: {future_period[0]}-{future_period[1]}")
+        print(f"Scenarios: {', '.join(scenarios)}")
         
         # Divide counties into chunks
         county_chunks = np.array_split(self.counties, n_chunks)
@@ -342,21 +415,22 @@ class ParallelXclimProcessor(ParallelNEXGDDP_CountyProcessor):
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize processor
+    # Initialize processor with standard 30-year baseline
     processor = ParallelXclimProcessor(
-        counties_shapefile_path="/home/mihiarc/repos/claude_climate/tl_2024_us_county/tl_2024_us_county.shp",
-        base_data_path="/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
+        counties_shapefile_path="../data/shapefiles/tl_2024_us_county.shp",
+        base_data_path="/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM",
+        baseline_period=(1980, 2010)
     )
     
-    # Process with xclim indicators
+    # Process climate indicators
     df = processor.process_xclim_parallel(
         scenarios=['historical', 'ssp245'],
         variables=['tas', 'tasmax', 'tasmin', 'pr'],
-        historical_period=(1980, 2010),
-        future_period=(2040, 2070),
-        n_chunks=16  # Use 16 cores
+        historical_period=(2000, 2010),
+        future_period=(2040, 2050),
+        n_chunks=16
     )
     
     # Save results
-    df.to_csv("parallel_xclim_indicators.csv", index=False)
-    print(f"Saved {len(df)} records to parallel_xclim_indicators.csv")
+    df.to_csv("climate_indicators.csv", index=False)
+    print(f"\nSaved {len(df)} records to climate_indicators.csv")

@@ -6,7 +6,7 @@ Test the fixed baseline percentile calculation
 import pandas as pd
 import sys
 sys.path.append('../src')
-from parallel_xclim_processor_fixed import ParallelXclimProcessorFixed
+from parallel_xclim_processor import ParallelXclimProcessor
 
 def test_fixed_baseline():
     """
@@ -16,7 +16,7 @@ def test_fixed_baseline():
     print("="*60)
     
     # Initialize with 30-year baseline
-    processor = ParallelXclimProcessorFixed(
+    processor = ParallelXclimProcessor(
         counties_shapefile_path="../data/shapefiles/tl_2024_us_county.shp",
         base_data_path="/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM",
         baseline_period=(1980, 2010)  # 30-year climatological baseline

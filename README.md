@@ -40,8 +40,7 @@ uv pip install xarray geopandas regionmask xclim pandas numpy
 ```
 claude_climate/
 ├── src/                           # Main processing scripts
-│   ├── parallel_xclim_processor_fixed.py  # Fixed baseline parallel processor
-│   ├── parallel_xclim_processor.py        # Standard parallel processor
+│   ├── parallel_xclim_processor.py        # Parallel processor with fixed baseline
 │   └── xclim_indicators_processor.py      # Sequential processor
 ├── tests/                         # Test scripts
 │   ├── test_fixed_baseline.py
@@ -59,10 +58,10 @@ claude_climate/
 ### Basic Example
 
 ```python
-from src.parallel_xclim_processor_fixed import ParallelXclimProcessorFixed
+from src.parallel_xclim_processor import ParallelXclimProcessor
 
 # Initialize processor with fixed baseline
-processor = ParallelXclimProcessorFixed(
+processor = ParallelXclimProcessor(
     counties_shapefile_path="data/shapefiles/tl_2024_us_county.shp",
     base_data_path="/path/to/NEX-GDDP-data",
     baseline_period=(1980, 2010)  # 30-year climatological baseline
