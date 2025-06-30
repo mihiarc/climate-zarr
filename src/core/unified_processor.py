@@ -514,10 +514,46 @@ class UnifiedParallelProcessor:
         Returns:
             Dictionary of tile_id -> {'bounds': [...], 'counties': [...]}
         """
-        from ..utils.shapefile_utils import CountyBoundsLookup
+        from shapely.geometry import box
+        import numpy as np
         
-        lookup = CountyBoundsLookup(self.shapefile_path)
-        return lookup.create_spatial_tiles(tile_size_degrees)
+        # Use already loaded counties_gdf instead of loading again
+        total_bounds = self.counties_gdf.total_bounds
+        min_lon, min_lat, max_lon, max_lat = total_bounds
+        
+        # Create grid of tiles
+        lon_steps = np.arange(min_lon, max_lon, tile_size_degrees)
+        lat_steps = np.arange(min_lat, max_lat, tile_size_degrees)
+        
+        tiles = {}
+        tile_id = 0
+        
+        for lon in lon_steps:
+            for lat in lat_steps:
+                tile_bounds = [
+                    lon, lat,
+                    min(lon + tile_size_degrees, max_lon),
+                    min(lat + tile_size_degrees, max_lat)
+                ]
+                
+                # Find counties in this tile
+                bbox = box(tile_bounds[0], tile_bounds[1], tile_bounds[2], tile_bounds[3])
+                intersecting = self.counties_gdf[self.counties_gdf.geometry.intersects(bbox)]
+                counties = intersecting['GEOID'].tolist()
+                
+                if counties:
+                    tiles[f"tile_{tile_id:04d}"] = {
+                        'bounds': tile_bounds,
+                        'counties': counties,
+                        'centroid': [
+                            (tile_bounds[0] + tile_bounds[2]) / 2,
+                            (tile_bounds[1] + tile_bounds[3]) / 2
+                        ]
+                    }
+                    tile_id += 1
+        
+        logger.info(f"Created {len(tiles)} spatial tiles covering {len(self.counties_gdf)} counties")
+        return tiles
     
     def process_parallel_with_tiles(
         self,

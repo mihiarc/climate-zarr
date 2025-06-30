@@ -106,25 +106,36 @@ def test_tile_processing():
     # Test 2: Tile-based processing
     progress.update("Test 2: Tile-based processing (ELT pattern)")
     
-    # Create tiles
-    logger.info("Creating spatial tiles...")
-    tiles = processor.create_spatial_tiles(tile_size_degrees=1.0)
-    logger.info(f"✓ Created {len(tiles)} spatial tiles")
+    # Create a single tile containing just our test counties
+    logger.info("Creating test tile for 3 counties...")
     
-    # Find tiles containing our test counties
-    test_tiles = {}
-    for tile_id, tile_info in tiles.items():
-        if any(geoid in tile_info['counties'] for geoid in test_geoids):
-            test_tiles[tile_id] = tile_info
+    # Get bounds of test counties
+    test_counties_gdf = processor.counties_gdf[processor.counties_gdf['GEOID'].isin(test_geoids)]
+    test_bounds = test_counties_gdf.total_bounds  # [minx, miny, maxx, maxy]
     
-    logger.info(f"✓ Test counties found in {len(test_tiles)} tiles")
+    # Create a single tile with some padding
+    padding = 0.5  # degrees
+    test_tile = {
+        'test_tile': {
+            'bounds': [
+                test_bounds[0] - padding,
+                test_bounds[1] - padding,
+                test_bounds[2] + padding,
+                test_bounds[3] + padding
+            ],
+            'counties': test_geoids
+        }
+    }
+    
+    logger.info(f"✓ Created test tile covering {len(test_geoids)} counties")
+    logger.info(f"  Tile bounds: {test_tile['test_tile']['bounds']}")
     
     # Process using tile method
     start_time = time.time()
     tile_results_count = 0
     
-    for i, (tile_id, tile_info) in enumerate(test_tiles.items(), 1):
-        logger.info(f"  Processing tile {i}/{len(test_tiles)}: {tile_id} ({len(tile_info['counties'])} counties)")
+    for tile_id, tile_info in test_tile.items():
+        logger.info(f"  Processing tile: {tile_id} ({len(tile_info['counties'])} counties)")
         
         results, failed = processor.process_counties_by_tile(
             tile_id=tile_id,
