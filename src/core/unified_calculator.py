@@ -389,7 +389,8 @@ class UnifiedClimateCalculator:
         self,
         scenario: str,
         county_bounds: List[float],
-        county_info: Dict[str, Any]
+        county_info: Dict[str, Any],
+        year_range: Optional[Tuple[int, int]] = None
     ) -> xr.Dataset:
         """Extract county data with optimized loading."""
         # Adjust bounds for dateline
@@ -410,6 +411,25 @@ class UnifiedClimateCalculator:
             if not variable_files:
                 logger.warning(f"No files found for {variable} in scenario {scenario}")
                 continue
+            
+            # Filter files by year range if specified
+            if year_range:
+                filtered_files = []
+                for file_path in variable_files:
+                    # Extract year from filename (assumes format like *_1950.nc)
+                    year_str = file_path.stem.split('_')[-1]
+                    try:
+                        year = int(year_str)
+                        if year_range[0] <= year <= year_range[1]:
+                            filtered_files.append(file_path)
+                    except ValueError:
+                        # If we can't parse year, include the file
+                        filtered_files.append(file_path)
+                variable_files = filtered_files
+                
+                if not variable_files:
+                    logger.warning(f"No files found for {variable} in scenario {scenario} for years {year_range}")
+                    continue
             
             # Load with pre-selection for efficiency
             datasets = []
@@ -522,7 +542,8 @@ class UnifiedClimateCalculator:
         scenarios: List[str],
         county_bounds: List[float],
         county_info: Dict[str, Any],
-        indicators_config: Dict[str, Dict[str, Any]]
+        indicators_config: Dict[str, Dict[str, Any]],
+        year_range: Optional[Tuple[int, int]] = None
     ) -> List[Dict[str, Any]]:
         """Calculate climate indicators for a county.
         
@@ -536,7 +557,7 @@ class UnifiedClimateCalculator:
         
         for scenario in scenarios:
             # Extract county data
-            county_data = self.extract_county_data(scenario, county_bounds, county_info)
+            county_data = self.extract_county_data(scenario, county_bounds, county_info, year_range)
             
             if len(county_data.data_vars) == 0:
                 logger.warning(f"No data found for county {county_info.get('geoid')} in scenario {scenario}")

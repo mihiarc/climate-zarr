@@ -61,8 +61,8 @@ def test_tile_processing():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
-    # Skip merged baseline file - use individual cached baselines instead
-    merged_baseline_path = None
+    # Use merged baseline file for now (TODO: implement lazy loading)
+    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baselines.pkl"
     
     # Initialize progress tracker (4 main test steps)
     progress = ProgressTracker(total_steps=4)
@@ -86,7 +86,7 @@ def test_tile_processing():
     # Test with a small subset first
     test_geoids = ["06037", "06059", "06073"]  # LA, Orange, San Diego counties
     logger.info(f"Testing with {len(test_geoids)} counties: {', '.join(test_geoids)}")
-    logger.info("Using individual cached baselines (not merged file) for efficient memory usage")
+    logger.info("Processing years 2000-2010 (11 years) for faster testing")
     
     # Test 1: Standard processing (baseline)
     progress.update("Test 1: Standard processing (baseline)")
@@ -98,7 +98,8 @@ def test_tile_processing():
         indicators_config={
             'tx90p': {'xclim_func': 'tx90p', 'variable': 'tasmax', 'freq': 'YS'},
             'tn10p': {'xclim_func': 'tn10p', 'variable': 'tasmin', 'freq': 'YS'}
-        }
+        },
+        year_range=(2000, 2010)  # Only process 11 years for faster testing
     )
     
     standard_time = time.time() - start_time
@@ -136,6 +137,7 @@ def test_tile_processing():
                 'tx90p': {'xclim_func': 'tx90p', 'variable': 'tasmax', 'freq': 'YS'},
                 'tn10p': {'xclim_func': 'tn10p', 'variable': 'tasmin', 'freq': 'YS'}
             },
+            year_range=(2000, 2010),  # Match standard test
             use_dask=True
         )
         
@@ -223,8 +225,8 @@ def test_full_parallel_tiles():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
-    # Skip merged baseline file - use individual cached baselines instead
-    merged_baseline_path = None
+    # Use merged baseline file for now (TODO: implement lazy loading)
+    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baselines.pkl"
     
     logger.info("\nInitializing processor with 32 workers...")
     

@@ -132,7 +132,8 @@ class UnifiedParallelProcessor:
         counties_filter: Optional[List[str]] = None,
         batch_size: Optional[int] = None,
         progress_callback: Optional[Callable] = None,
-        variables: Optional[List[str]] = None
+        variables: Optional[List[str]] = None,
+        year_range: Optional[Tuple[int, int]] = None
     ) -> pd.DataFrame:
         """Process all counties in parallel.
         
@@ -143,6 +144,7 @@ class UnifiedParallelProcessor:
             batch_size: Counties per batch (None for auto)
             progress_callback: Optional callback function(completed, total, elapsed)
             variables: Optional list of variables (for backward compatibility)
+            year_range: Optional tuple of (start_year, end_year) to limit data loading
             
         Returns:
             DataFrame with all results
@@ -186,7 +188,8 @@ class UnifiedParallelProcessor:
                     scenarios,
                     indicators_config,
                     self.base_data_path,
-                    self.merged_baseline_path
+                    self.merged_baseline_path,
+                    year_range
                 ): i
                 for i, batch in enumerate(batches)
             }
@@ -243,7 +246,8 @@ class UnifiedParallelProcessor:
         scenarios: List[str],
         indicators_config: Dict[str, Dict[str, Any]],
         base_data_path: str,
-        merged_baseline_path: Optional[str]
+        merged_baseline_path: Optional[str],
+        year_range: Optional[Tuple[int, int]] = None
     ) -> Tuple[List[Dict], List[str]]:
         """Process a batch of counties (worker function).
         
@@ -271,7 +275,8 @@ class UnifiedParallelProcessor:
                     scenarios=scenarios,
                     county_bounds=county['bounds'],
                     county_info=county_info,
-                    indicators_config=indicators_config
+                    indicators_config=indicators_config,
+                    year_range=year_range
                 )
                 
                 batch_results.extend(results)
@@ -413,6 +418,7 @@ class UnifiedParallelProcessor:
         tile_info: Dict[str, Any],
         scenarios: List[str],
         indicators_config: Dict[str, Dict[str, Any]],
+        year_range: Optional[Tuple[int, int]] = None,
         **kwargs
     ) -> Tuple[List[Dict], List[str]]:
         """Process multiple counties sharing the same spatial tile.
