@@ -1,18 +1,34 @@
 #!/usr/bin/env python3
 """
 Create organized backup of baseline cache files with county mapping.
+
+This tool helps organize and backup baseline cache files from various sources.
 """
 
 import sys
 import shutil
 import pickle
 import json
+import hashlib
 from pathlib import Path
+from datetime import datetime
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.core.unified_processor import UnifiedParallelProcessor
-from src.archive.optimized_climate_calculator import OptimizedClimateCalculator
+from src.utils.state_fips import get_state_name
+
+
+def get_cache_key(bounds, prefix='baseline', baseline_period=(1980, 2010)):
+    """Generate a cache key from bounds - matching the original format."""
+    # Convert bounds to tuple if it's a list
+    if isinstance(bounds, list):
+        bounds = tuple(bounds)
+    # Match the original format: "prefix_(bound1, bound2, bound3, bound4)_(start, end)"
+    key_data = f"{prefix}_{bounds}_{baseline_period}".encode()
+    cache_key = hashlib.md5(key_data).hexdigest()
+    return cache_key
+
 
 def backup_baselines(shapefile_path, backup_dir, cache_dir=None):
     """Create organized backup of baseline cache files."""
@@ -22,24 +38,30 @@ def backup_baselines(shapefile_path, backup_dir, cache_dir=None):
     
     # Load processor to get county info
     processor = UnifiedParallelProcessor(shapefile_path, "/dummy/path")
-    calculator = OptimizedClimateCalculator(
-        base_data_path="/dummy/path",
-        cache_dir=cache_dir,
-        enable_caching=True
-    )
+    
+    # Default cache directory if not provided
+    if cache_dir is None:
+        cache_dir = Path.home() / '.climate_cache'
+    else:
+        cache_dir = Path(cache_dir)
     
     # Create mapping of cache keys to county info
     mapping = {}
     cached_files = []
     
     print(f"Creating backup in: {backup_path}")
-    print(f"Source cache dir: {calculator.cache_dir}")
+    print(f"Source cache dir: {cache_dir}")
     
-    for idx, county in processor.counties.iterrows():
+    # Check cache directory
+    cache_files = list(cache_dir.glob("*.pkl"))
+    print(f"Found {len(cache_files)} .pkl files in cache directory")
+    
+    for idx, county in processor.counties_gdf.iterrows():
         county_info = processor.prepare_county_info(county)
-        cache_key = calculator._get_cache_key(county_info['bounds'], 'baseline_percentiles')
+        # Try the most likely prefix first (baseline_percentiles)
+        cache_key = get_cache_key(county_info['bounds'], prefix='baseline_percentiles')
+        cache_file = cache_dir / f"{cache_key}.pkl"
         
-        cache_file = calculator.cache_dir / f"{cache_key}.pkl"
         if cache_file.exists():
             # Copy file with descriptive name
             backup_file = backup_path / f"{county['GEOID']}_{county['NAME'].replace(' ', '_')}_{cache_key}.pkl"
@@ -48,7 +70,8 @@ def backup_baselines(shapefile_path, backup_dir, cache_dir=None):
             mapping[cache_key] = {
                 'geoid': county['GEOID'],
                 'name': county['NAME'],
-                'state': county['STATEFP'],
+                'state': get_state_name(county['STATEFP']),
+                'state_fips': county['STATEFP'],
                 'bounds': county_info['bounds'],
                 'cache_file': f"{county['GEOID']}_{county['NAME'].replace(' ', '_')}_{cache_key}.pkl",
                 'original_file': f"{cache_key}.pkl"
@@ -62,10 +85,12 @@ def backup_baselines(shapefile_path, backup_dir, cache_dir=None):
     
     # Save summary
     summary = {
-        'total_counties': len(processor.counties),
+        'total_counties': len(processor.counties_gdf),
         'cached_counties': len(cached_files),
-        'backup_date': str(Path().resolve()),
-        'cache_coverage': f"{len(cached_files)/len(processor.counties)*100:.1f}%"
+        'backup_date': datetime.now().isoformat(),
+        'cache_coverage': f"{len(cached_files)/len(processor.counties_gdf)*100:.1f}%",
+        'cache_directory': str(cache_dir),
+        'backup_directory': str(backup_path)
     }
     
     summary_file = backup_path / "backup_summary.json"
@@ -73,15 +98,15 @@ def backup_baselines(shapefile_path, backup_dir, cache_dir=None):
         json.dump(summary, f, indent=2)
     
     print(f"\nBackup complete:")
-    print(f"  Cached counties: {len(cached_files)}/{len(processor.counties)}")
-    print(f"  Coverage: {len(cached_files)/len(processor.counties)*100:.1f}%")
+    print(f"  Cached counties: {len(cached_files)}/{len(processor.counties_gdf)}")
+    print(f"  Coverage: {len(cached_files)/len(processor.counties_gdf)*100:.1f}%")
     print(f"  Files backed up: {len(cached_files)} + 2 metadata files")
 
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Backup baseline cache files')
-    parser.add_argument('--shapefile', default='data/shapefiles/tl_2024_us_county.shp', 
+    parser.add_argument('--shapefile', default='/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp', 
                        help='Path to county shapefile')
     parser.add_argument('--backup-dir', default='/media/mihiarc/RPA1TB/CLIMATE_DATA/climate_baselines_backup',
                        help='Backup directory')

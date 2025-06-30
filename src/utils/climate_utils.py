@@ -39,22 +39,31 @@ def create_annual_record(
     
     # Add indicator values with appropriate transformations
     for ind_name, ind_data in indicators.items():
-        if ind_name == 'tg_mean':
-            # Convert from Kelvin to Celsius
-            record[ind_name + '_C'] = float(ind_data.isel(time=time_index).values) - 273.15
-        elif ind_name == 'precip_accumulation':
-            # Add units to column name
-            record[ind_name + '_mm'] = float(ind_data.isel(time=time_index).values)
-        elif ind_name in ['tx90p', 'tn10p']:
-            # Convert count to percentage
-            count = float(ind_data.isel(time=time_index).values)
-            year_start = pd.Timestamp(f'{year}-01-01')
-            year_end = pd.Timestamp(f'{year}-12-31')
-            n_days = (year_end - year_start).days + 1
-            percentage = (count / n_days) * 100
-            record[ind_name + '_percent'] = percentage
-        else:
-            record[ind_name] = float(ind_data.isel(time=time_index).values)
+        # Check if time_index is valid
+        if hasattr(ind_data, 'time') and time_index >= len(ind_data.time):
+            # Skip this indicator if index is out of bounds
+            continue
+            
+        try:
+            if ind_name == 'tg_mean':
+                # Convert from Kelvin to Celsius
+                record[ind_name + '_C'] = float(ind_data.isel(time=time_index).values) - 273.15
+            elif ind_name == 'precip_accumulation':
+                # Add units to column name
+                record[ind_name + '_mm'] = float(ind_data.isel(time=time_index).values)
+            elif ind_name in ['tx90p', 'tn10p']:
+                # Convert count to percentage
+                count = float(ind_data.isel(time=time_index).values)
+                year_start = pd.Timestamp(f'{year}-01-01')
+                year_end = pd.Timestamp(f'{year}-12-31')
+                n_days = (year_end - year_start).days + 1
+                percentage = (count / n_days) * 100
+                record[ind_name + '_percent'] = percentage
+            else:
+                record[ind_name] = float(ind_data.isel(time=time_index).values)
+        except IndexError:
+            # Skip if we can't access this time index
+            continue
     
     return record
 
@@ -99,7 +108,14 @@ def calculate_area_weighted_mean(
     
     # Apply weighted mean
     weighted_data = data.weighted(weights)
-    return weighted_data.mean(dim=[lat_dim, lon_dim])
+    result = weighted_data.mean(dim=[lat_dim, lon_dim])
+    
+    # Preserve attributes (including units) for each variable
+    for var in result.data_vars:
+        if var in data.data_vars and 'units' in data[var].attrs:
+            result[var].attrs['units'] = data[var].attrs['units']
+    
+    return result
 
 
 def format_results_for_county(
@@ -127,12 +143,19 @@ def format_results_for_county(
             
         scenario_indicators = indicators[scenario]
         
-        # Create annual records
-        for i, year in enumerate(years):
+        # Get the actual length of data from one of the indicators
+        max_time_steps = 0
+        for ind_name, ind_data in scenario_indicators.items():
+            if hasattr(ind_data, 'time'):
+                max_time_steps = len(ind_data.time)
+                break
+        
+        # Create annual records only for available time steps
+        for i in range(min(len(years), max_time_steps)):
             record = create_annual_record(
                 county_info=county_info,
                 scenario=scenario,
-                year=int(year),
+                year=int(years[i]),
                 indicators=scenario_indicators,
                 time_index=i
             )

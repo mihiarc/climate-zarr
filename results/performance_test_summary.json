@@ -1,0 +1,12 @@
+{
+  "test_date": "2025-06-29T21:27:19.328523",
+  "total_tests": 13,
+  "successful_tests": 10,
+  "best_single_county_time": 0.00013589859008789062,
+  "best_parallel_rate": 118.4354049320507,
+  "optimal_workers": 8,
+  "system_info": {
+    "cpu_count": 56,
+    "memory_gb": 92.94584274291992
+  }
+}

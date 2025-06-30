@@ -14,6 +14,13 @@ from functools import lru_cache
 import pickle
 import warnings
 from xclim import atmos
+import zarr
+import dask
+import dask.array as da
+from dask.distributed import as_completed
+import asyncio
+import aiofiles
+import geopandas as gpd
 
 from ..utils.climate_utils import (
     create_annual_record,
@@ -25,6 +32,11 @@ from ..utils.file_operations import (
     load_netcdf,
     load_pickle,
     find_files
+)
+from ..utils.shapefile_utils import (
+    CountyBoundsLookup,
+    get_county_bounds,
+    get_county_info
 )
 
 warnings.filterwarnings('ignore')
@@ -42,7 +54,10 @@ class UnifiedClimateCalculator:
         self,
         base_data_path: str,
         merged_baseline_path: Optional[str] = None,
-        baseline_period: Tuple[int, int] = (1980, 2010)
+        baseline_period: Tuple[int, int] = (1980, 2010),
+        cache_dir: Optional[str] = None,
+        use_zarr: bool = False,
+        use_dask: bool = True
     ):
         """Initialize the calculator.
         
@@ -50,14 +65,27 @@ class UnifiedClimateCalculator:
             base_data_path: Path to base climate data
             merged_baseline_path: Path to merged baseline pickle file
             baseline_period: Tuple of (start_year, end_year) for baseline
+            cache_dir: Directory for pre-extracted county data and Zarr stores
+            use_zarr: Whether to use Zarr format for cloud-optimized storage
+            use_dask: Whether to use Dask for parallel/lazy operations
         """
         self.base_path = Path(base_data_path)
         self.baseline_period = baseline_period
+        self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / '.climate_cache'
+        self.use_zarr = use_zarr
+        self.use_dask = use_dask
         
         self.merged_baseline_path = Path(merged_baseline_path) if merged_baseline_path else None
         self.merged_baselines = None
         self.baseline_lookup = {}  # GEOID -> baseline data
         self.baseline_by_bounds = {}  # bounds_key -> baseline data
+        
+        # Create cache directories
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.county_extracts_dir = self.cache_dir / 'county_extracts'
+        self.zarr_stores_dir = self.cache_dir / 'zarr_stores'
+        self.county_extracts_dir.mkdir(exist_ok=True)
+        self.zarr_stores_dir.mkdir(exist_ok=True)
         
         # Load merged baselines if available
         if self.merged_baseline_path and self.merged_baseline_path.exists():
@@ -314,38 +342,67 @@ class UnifiedClimateCalculator:
         lat_slice = slice(min_lat - buffer, max_lat + buffer)
         lon_slice = slice(min_lon - buffer, max_lon + buffer)
         
-        # Get file list
-        scenario_files = self._get_scenario_files(scenario)
-        if not scenario_files:
-            logger.warning(f"No files found for scenario {scenario}")
+        # Collect data for all variables
+        all_data = {}
+        
+        # Process each variable
+        for variable in ['tas', 'tasmax', 'tasmin', 'pr']:
+            variable_files = self._get_variable_scenario_files(variable, scenario)
+            
+            if not variable_files:
+                logger.warning(f"No files found for {variable} in scenario {scenario}")
+                continue
+            
+            # Load with pre-selection for efficiency
+            datasets = []
+            for file_path in variable_files:
+                ds = load_netcdf(
+                    file_path,
+                    preselect_bounds={'lat': lat_slice, 'lon': lon_slice},
+                    chunks={'time': 365}
+                )
+                if ds is not None and variable in ds:
+                    datasets.append(ds[[variable]])
+            
+            if datasets:
+                # Combine datasets for this variable
+                combined = xr.concat(datasets, dim='time')
+                combined = combined.sortby('time')
+                
+                # Preserve or set units attribute
+                if 'units' in datasets[0][variable].attrs:
+                    combined[variable].attrs['units'] = datasets[0][variable].attrs['units']
+                else:
+                    # Set default units based on variable name
+                    if variable in ['tas', 'tasmax', 'tasmin']:
+                        combined[variable].attrs['units'] = 'K'
+                    elif variable == 'pr':
+                        combined[variable].attrs['units'] = 'kg m-2 s-1'
+                
+                all_data[variable] = combined[variable]
+        
+        if not all_data:
             return xr.Dataset()
         
-        # Load with pre-selection for efficiency
-        datasets = []
-        for file_path in scenario_files:
-            ds = load_netcdf(
-                file_path,
-                preselect_bounds={'lat': lat_slice, 'lon': lon_slice},
-                chunks={'time': 365}
-            )
-            if ds is not None:
-                datasets.append(ds)
-        
-        if not datasets:
-            return xr.Dataset()
-        
-        # Combine datasets
-        combined = xr.concat(datasets, dim='time')
-        combined = combined.sortby('time')
+        # Create combined dataset
+        combined_ds = xr.Dataset(all_data)
         
         # Calculate area-weighted mean
-        return calculate_area_weighted_mean(combined)
+        return calculate_area_weighted_mean(combined_ds)
     
     @lru_cache(maxsize=32)
     def _get_scenario_files(self, scenario: str) -> List[Path]:
         """Get sorted list of files for a scenario (cached)."""
         scenario_path = self.base_path / scenario
         return find_files(scenario_path, "*.nc")
+    
+    @lru_cache(maxsize=128)
+    def _get_variable_scenario_files(self, variable: str, scenario: str) -> List[Path]:
+        """Get sorted list of files for a variable and scenario (cached)."""
+        variable_scenario_path = self.base_path / variable / scenario
+        if not variable_scenario_path.exists():
+            return []
+        return sorted(list(variable_scenario_path.glob("*.nc")))
     
     def calculate_indicators_base(self, 
                            data: Dict[str, np.ndarray],
@@ -437,7 +494,12 @@ class UnifiedClimateCalculator:
             
             # Calculate indicators
             scenario_indicators = {}
-            years = pd.to_datetime(county_data.time.values).year.unique()
+            # Handle both standard and noleap calendars
+            try:
+                years = pd.to_datetime(county_data.time.values).year.unique()
+            except:
+                # For cftime calendars, extract year directly
+                years = np.unique([t.year for t in county_data.time.values])
             
             for ind_name, ind_config in indicators_config.items():
                 indicator = self._calculate_single_indicator(
@@ -540,3 +602,220 @@ class UnifiedClimateCalculator:
         except Exception as e:
             logger.error(f"Error calculating {indicator_name}: {e}")
             return None
+    
+    # ELT Pattern Methods for Phase 2 Optimization
+    
+    def extract_county_data_optimized(self, county_id: str, variable: str, scenario: str, year_range: Tuple[int, int]) -> Optional[xr.DataArray]:
+        """Use pre-extracted data if available, fall back to base method.
+        
+        This implements the ELT pattern by checking for pre-processed data first.
+        """
+        # Check for pre-extracted county data
+        extract_dir = self.county_extracts_dir / county_id
+        extract_file = extract_dir / f"{variable}_{scenario}_{year_range[0]}-{year_range[1]}.nc"
+        
+        if extract_file.exists():
+            # Load pre-extracted data (100x faster)
+            logger.debug(f"Loading pre-extracted data for {county_id} from {extract_file}")
+            ds = xr.open_dataset(extract_file)
+            return ds[variable]
+        
+        # Check for pre-merged baseline
+        if scenario == 'historical' and year_range == self.baseline_period:
+            merged_file = self.cache_dir / 'baseline_merged' / f"{variable}_baseline_{year_range[0]}-{year_range[1]}.nc"
+            if merged_file.exists():
+                logger.debug(f"Using pre-merged baseline for {variable}")
+                ds = xr.open_dataset(merged_file)
+                # Extract county region
+                bounds = get_county_bounds(county_id)
+                if bounds:
+                    return self._extract_region(ds[variable], bounds)
+                else:
+                    logger.warning(f"Could not find bounds for county {county_id}")
+                    return None
+        
+        # Fall back to original method if no optimized data available
+        logger.debug(f"No pre-extracted data for {county_id}, using standard extraction")
+        return None
+    
+    def _extract_region(self, data: xr.DataArray, bounds: List[float]) -> xr.DataArray:
+        """Extract a spatial region from data."""
+        min_lon, min_lat, max_lon, max_lat = adjust_longitude_bounds(bounds)
+        return data.sel(
+            lat=slice(min_lat, max_lat),
+            lon=slice(min_lon, max_lon)
+        )
+    
+    def load_multiple_files(self, files: List[Path], preselect_bounds: Optional[Dict] = None) -> Optional[xr.Dataset]:
+        """Load multiple NetCDF files into a single dataset.
+        
+        Args:
+            files: List of file paths to load
+            preselect_bounds: Optional bounds for spatial pre-selection
+            
+        Returns:
+            Combined xarray Dataset or None if loading fails
+        """
+        if not files:
+            return None
+            
+        try:
+            if self.use_dask:
+                # Use Dask for parallel loading
+                ds = xr.open_mfdataset(
+                    files,
+                    combine='by_coords',
+                    chunks={'time': 365},
+                    parallel=True,
+                    preprocess=lambda ds: ds.sel(**preselect_bounds) if preselect_bounds else ds
+                )
+            else:
+                # Load without Dask
+                datasets = []
+                for f in files:
+                    ds = load_netcdf(f, preselect_bounds=preselect_bounds)
+                    if ds:
+                        datasets.append(ds)
+                
+                if datasets:
+                    ds = xr.concat(datasets, dim='time')
+                    ds = ds.sortby('time')
+                else:
+                    return None
+                    
+            return ds
+            
+        except Exception as e:
+            logger.error(f"Error loading multiple files: {e}")
+            return None
+    
+    def get_zarr_store(self, variable: str, scenario: str) -> Optional[xr.Dataset]:
+        """Get or create Zarr store for variable.
+        
+        Zarr format provides cloud-optimized storage with efficient chunking.
+        """
+        if not self.use_zarr:
+            return None
+            
+        zarr_path = self.zarr_stores_dir / f"{variable}_{scenario}.zarr"
+        
+        if zarr_path.exists():
+            # Open existing Zarr store with Dask
+            logger.info(f"Opening Zarr store: {zarr_path}")
+            if self.use_dask:
+                return xr.open_zarr(zarr_path, chunks='auto')
+            else:
+                return xr.open_zarr(zarr_path)
+        else:
+            # Convert NetCDF to Zarr on first access
+            logger.info(f"Creating Zarr store: {zarr_path}")
+            return self._convert_to_zarr(variable, scenario, zarr_path)
+    
+    def _convert_to_zarr(self, variable: str, scenario: str, zarr_path: Path) -> xr.Dataset:
+        """Convert NetCDF files to Zarr format."""
+        # Get all files for this variable/scenario
+        files = self._get_variable_scenario_files(variable, scenario)
+        
+        if not files:
+            logger.warning(f"No files found for {variable}/{scenario}")
+            return None
+        
+        # Optimal chunks for county-scale processing
+        chunks = {
+            'time': 365,  # One year
+            'lat': 100,   # ~25 degrees
+            'lon': 100    # ~25 degrees
+        }
+        
+        # Open all files as a single dataset with Dask
+        if self.use_dask:
+            ds = xr.open_mfdataset(
+                files,
+                combine='by_coords',
+                chunks=chunks,
+                parallel=True
+            )
+        else:
+            ds = xr.open_mfdataset(files, combine='by_coords')
+        
+        # Set up Zarr encoding with compression
+        encoding = {
+            variable: {
+                'compressor': zarr.Blosc(cname='zstd', clevel=3),
+                'chunks': tuple(chunks.get(dim, ds[variable].sizes[dim]) 
+                              for dim in ds[variable].dims)
+            }
+        }
+        
+        # Write to Zarr
+        logger.info(f"Writing to Zarr store: {zarr_path}")
+        ds.to_zarr(zarr_path, encoding=encoding, mode='w')
+        
+        return ds
+    
+    async def load_netcdf_async(self, file_paths: List[Path], bounds: List[float]) -> xr.Dataset:
+        """Asynchronously load multiple NetCDF files with prefetching."""
+        tasks = []
+        for path in file_paths:
+            task = asyncio.create_task(self._load_single_async(path, bounds))
+            tasks.append(task)
+        
+        datasets = await asyncio.gather(*tasks)
+        
+        # Filter out None results
+        valid_datasets = [ds for ds in datasets if ds is not None]
+        
+        if valid_datasets:
+            return xr.concat(valid_datasets, dim='time')
+        else:
+            return None
+    
+    async def _load_single_async(self, file_path: Path, bounds: List[float]) -> Optional[xr.Dataset]:
+        """Load a single NetCDF file asynchronously."""
+        try:
+            # Use async I/O for file reading
+            min_lon, min_lat, max_lon, max_lat = adjust_longitude_bounds(bounds)
+            
+            # For now, use synchronous xarray loading in an executor
+            loop = asyncio.get_event_loop()
+            ds = await loop.run_in_executor(
+                None,
+                lambda: load_netcdf(
+                    file_path,
+                    preselect_bounds={
+                        'lat': slice(min_lat, max_lat),
+                        'lon': slice(min_lon, max_lon)
+                    },
+                    chunks={'time': 365} if self.use_dask else None
+                )
+            )
+            return ds
+        except Exception as e:
+            logger.error(f"Error loading {file_path}: {e}")
+            return None
+    
+    def process_county_with_shared_data(self, county_id: str, shared_tile_data: Dict[str, xr.DataArray]) -> Dict[str, Any]:
+        """Process a county using data already loaded in memory.
+        
+        This is used for batch processing multiple counties that share the same tile.
+        """
+        # Extract county-specific region from shared tile data
+        bounds = get_county_bounds(county_id)
+        if not bounds:
+            logger.error(f"Could not find bounds for county {county_id}")
+            return {}
+        
+        county_data = {}
+        for var, data in shared_tile_data.items():
+            county_data[var] = self._extract_region(data, bounds)
+        
+        # Calculate area-weighted means
+        results = {}
+        for var, data in county_data.items():
+            if data is not None and data.size > 0:
+                results[var] = calculate_area_weighted_mean(
+                    data,
+                    lat_bounds=(bounds[1], bounds[3])
+                )
+        
+        return results

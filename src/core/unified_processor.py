@@ -15,6 +15,7 @@ import geopandas as gpd
 
 from .unified_calculator import UnifiedClimateCalculator
 from ..utils.file_operations import ensure_directory, save_json
+from ..utils.state_fips import get_state_name
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class UnifiedParallelProcessor:
         return {
             'GEOID': county_row['GEOID'],
             'NAME': county_row['NAME'],
-            'STATE': county_row.get('STATE_NAME', county_row.get('STATEFP', 'Unknown')),
+            'STATE': get_state_name(county_row.get('STATEFP', '')),
             'bounds': list(bounds)  # (minx, miny, maxx, maxy)
         }
     
@@ -263,7 +264,7 @@ class UnifiedParallelProcessor:
                 county_info = {
                     'geoid': county['GEOID'],
                     'name': county['NAME'],
-                    'state': county.get('STATE_NAME', county.get('STATE', 'Unknown'))
+                    'state': county.get('STATE', 'Unknown')  # Already processed by prepare_county_info
                 }
                 
                 results = calculator.calculate_indicators(
@@ -403,3 +404,214 @@ class UnifiedParallelProcessor:
         
         logger.info(f"Saved results to {output_path}")
         return output_path
+    
+    # Phase 2: Tile-based batch processing methods
+    
+    def process_counties_by_tile(
+        self,
+        tile_id: str,
+        tile_info: Dict[str, Any],
+        scenarios: List[str],
+        indicators_config: Dict[str, Dict[str, Any]],
+        **kwargs
+    ) -> Tuple[List[Dict], List[str]]:
+        """Process multiple counties sharing the same spatial tile.
+        
+        This method loads data once for the entire tile and then extracts
+        county-specific regions, significantly reducing I/O operations.
+        
+        Args:
+            tile_id: Unique identifier for the tile
+            tile_info: Dictionary with 'bounds' and 'counties' keys
+            scenarios: List of climate scenarios to process
+            indicators_config: Configuration for climate indicators
+            **kwargs: Additional arguments passed to calculator
+            
+        Returns:
+            Tuple of (results_list, failed_counties_list)
+        """
+        tile_bounds = tile_info['bounds']
+        county_ids = tile_info['counties']
+        
+        logger.info(f"Processing tile {tile_id} with {len(county_ids)} counties")
+        
+        # Initialize calculator with optimizations enabled
+        calculator = UnifiedClimateCalculator(
+            base_data_path=str(self.base_data_path),
+            merged_baseline_path=self.merged_baseline_path,
+            cache_dir=kwargs.get('cache_dir'),
+            use_zarr=kwargs.get('use_zarr', False),
+            use_dask=kwargs.get('use_dask', True)
+        )
+        
+        results = []
+        failed_counties = []
+        
+        try:
+            # Load data once for entire tile
+            tile_data = {}
+            for scenario in scenarios:
+                scenario_data = {}
+                
+                # Load all variables for this scenario/tile
+                for variable in ['tas', 'tasmax', 'tasmin', 'pr']:
+                    # Check for Zarr store first
+                    zarr_store = calculator.get_zarr_store(variable, scenario)
+                    if zarr_store:
+                        # Extract tile region from Zarr
+                        scenario_data[variable] = zarr_store[variable].sel(
+                            lat=slice(tile_bounds[1], tile_bounds[3]),
+                            lon=slice(tile_bounds[0], tile_bounds[2])
+                        )
+                    else:
+                        # Fall back to NetCDF loading
+                        files = calculator._get_variable_scenario_files(variable, scenario)
+                        if files:
+                            ds = calculator.load_multiple_files(
+                                files,
+                                preselect_bounds={
+                                    'lat': slice(tile_bounds[1], tile_bounds[3]),
+                                    'lon': slice(tile_bounds[0], tile_bounds[2])
+                                }
+                            )
+                            if ds and variable in ds:
+                                scenario_data[variable] = ds[variable]
+                
+                tile_data[scenario] = scenario_data
+            
+            # Process each county using shared tile data
+            for county_id in county_ids:
+                try:
+                    county_results = calculator.process_county_with_shared_data(
+                        county_id, tile_data[scenarios[0]]  # Start with first scenario
+                    )
+                    
+                    # Add county metadata
+                    county_info = self.counties_gdf[self.counties_gdf['GEOID'] == county_id].iloc[0]
+                    county_results.update({
+                        'GEOID': county_id,
+                        'NAME': county_info['NAME'],
+                        'STATE': get_state_name(county_info.get('STATEFP', ''))
+                    })
+                    
+                    results.append(county_results)
+                    
+                except Exception as e:
+                    logger.error(f"Error processing county {county_id} in tile {tile_id}: {e}")
+                    failed_counties.append(county_id)
+                    
+        except Exception as e:
+            logger.error(f"Error loading data for tile {tile_id}: {e}")
+            failed_counties.extend(county_ids)
+        
+        return results, failed_counties
+    
+    def create_spatial_tiles(self, tile_size_degrees: float = 2.0) -> Dict[str, Dict[str, Any]]:
+        """Create spatial tiles for efficient batch processing.
+        
+        Args:
+            tile_size_degrees: Size of each tile in degrees (default: 2.0)
+            
+        Returns:
+            Dictionary of tile_id -> {'bounds': [...], 'counties': [...]}
+        """
+        from ..utils.shapefile_utils import CountyBoundsLookup
+        
+        lookup = CountyBoundsLookup(self.shapefile_path)
+        return lookup.create_spatial_tiles(tile_size_degrees)
+    
+    def process_parallel_with_tiles(
+        self,
+        scenarios: List[str] = ['historical', 'ssp245'],
+        indicators_config: Optional[Dict[str, Dict[str, Any]]] = None,
+        tile_size_degrees: float = 2.0,
+        max_counties_per_batch: Optional[int] = None,
+        **kwargs
+    ) -> pd.DataFrame:
+        """Process all counties using tile-based parallel processing.
+        
+        This method groups counties by spatial tiles to minimize data loading.
+        
+        Args:
+            scenarios: List of climate scenarios
+            indicators_config: Configuration for indicators
+            tile_size_degrees: Size of spatial tiles in degrees
+            max_counties_per_batch: Maximum counties per batch (None for auto)
+            **kwargs: Additional arguments passed to calculator
+            
+        Returns:
+            DataFrame with all results
+        """
+        # Create spatial tiles
+        tiles = self.create_spatial_tiles(tile_size_degrees)
+        logger.info(f"Created {len(tiles)} spatial tiles for processing")
+        
+        # Prepare tile batches
+        tile_batches = list(tiles.items())
+        
+        # Process tiles in parallel
+        all_results = []
+        all_failed = []
+        
+        start_time = time.time()
+        completed_counties = 0
+        total_counties = len(self.counties_gdf)
+        
+        with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
+            # Submit tile processing jobs
+            future_to_tile = {
+                executor.submit(
+                    self.process_counties_by_tile,
+                    tile_id,
+                    tile_info,
+                    scenarios,
+                    indicators_config or self._create_default_indicators_config(['tas', 'tasmax', 'tasmin', 'pr']),
+                    **kwargs
+                ): (tile_id, len(tile_info['counties']))
+                for tile_id, tile_info in tile_batches
+            }
+            
+            # Process results as they complete
+            for future in as_completed(future_to_tile):
+                tile_id, n_counties = future_to_tile[future]
+                
+                try:
+                    results, failed = future.result()
+                    all_results.extend(results)
+                    all_failed.extend(failed)
+                    
+                    completed_counties += n_counties
+                    elapsed = time.time() - start_time
+                    rate = completed_counties / elapsed if elapsed > 0 else 0
+                    eta = (total_counties - completed_counties) / rate if rate > 0 else 0
+                    
+                    logger.info(
+                        f"Completed tile {tile_id}: {len(results)} successful, {len(failed)} failed. "
+                        f"Progress: {completed_counties}/{total_counties} ({completed_counties/total_counties*100:.1f}%). "
+                        f"ETA: {eta/60:.1f} minutes"
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error processing tile {tile_id}: {e}")
+        
+        # Convert to DataFrame
+        if all_results:
+            results_df = pd.DataFrame(all_results)
+        else:
+            results_df = pd.DataFrame()
+        
+        # Log summary
+        total_time = time.time() - start_time
+        logger.info(f"\nProcessing complete:")
+        logger.info(f"  Total time: {total_time/60:.1f} minutes")
+        logger.info(f"  Counties processed: {len(all_results)}")
+        logger.info(f"  Counties failed: {len(all_failed)}")
+        logger.info(f"  Average time per county: {total_time/len(all_results):.1f}s" if all_results else "N/A")
+        
+        # Save failed counties list
+        if all_failed:
+            failed_path = self.output_dir / "failed_counties_tiles.json"
+            save_json(all_failed, failed_path)
+            logger.warning(f"Failed counties saved to {failed_path}")
+        
+        return results_df

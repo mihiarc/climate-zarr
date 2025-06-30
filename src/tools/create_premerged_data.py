@@ -27,7 +27,8 @@ import geopandas as gpd
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.core.unified_processor import UnifiedParallelProcessor
-from src.archive.optimized_climate_calculator import OptimizedClimateCalculator
+from src.core.unified_calculator import UnifiedClimateCalculator
+from src.utils.file_operations import ensure_directory, save_pickle, load_pickle
 
 
 class ClimateDataPreMerger:
@@ -47,8 +48,7 @@ class ClimateDataPreMerger:
     def create_baseline_merged_files(self, variables: List[str] = ['tasmax', 'tasmin']):
         """Create time-merged baseline files (1980-2010) for each variable."""
         
-        baseline_dir = self.output_dir / 'baseline_merged'
-        baseline_dir.mkdir(parents=True, exist_ok=True)
+        baseline_dir = ensure_directory(self.output_dir / 'baseline_merged')
         
         for variable in variables:
             print(f"\nMerging baseline files for {variable}...")
@@ -120,7 +120,7 @@ class ClimateDataPreMerger:
         """Pre-extract data for each county to eliminate redundant region selection."""
         
         county_dir = self.output_dir / 'county_extracts'
-        county_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directory(county_dir)
         
         # Select counties to process
         if counties_subset:
@@ -144,7 +144,7 @@ class ClimateDataPreMerger:
                 print(f"  Skipping {geoid} {name} (already processed)")
                 continue
             
-            county_output_dir.mkdir(exist_ok=True)
+            ensure_directory(county_output_dir)
             
             print(f"\n  Processing {geoid} {name}...")
             
@@ -254,7 +254,7 @@ class ClimateDataPreMerger:
         """Create regional tiles that cover multiple counties for shared processing."""
         
         tiles_dir = self.output_dir / 'regional_tiles'
-        tiles_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directory(tiles_dir)
         
         # Get overall bounds
         total_bounds = self.counties_gdf.total_bounds  # [minx, miny, maxx, maxy]
@@ -362,7 +362,7 @@ def main():
     
     parser = argparse.ArgumentParser(description='Pre-merge climate data for optimized processing')
     parser.add_argument('--data-path', 
-                       default='/media/mihiarc/RPA1TB/CLIMATE_DATA/climate_baselines_backup',
+                       default='/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM',
                        help='Path to climate data directory')
     parser.add_argument('--shapefile', 
                        default='/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp',

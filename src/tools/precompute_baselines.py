@@ -14,8 +14,12 @@ from datetime import datetime
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from parallel_processor import ParallelClimateProcessor
-from optimized_climate_calculator import OptimizedClimateCalculator
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.core.unified_processor import UnifiedParallelProcessor
+from src.core.unified_calculator import UnifiedClimateCalculator
 
 
 # Setup logging
@@ -32,16 +36,34 @@ logging.basicConfig(
 def compute_county_baseline(county_info, base_data_path, cache_dir):
     """Compute baseline for a single county."""
     try:
-        calculator = OptimizedClimateCalculator(
+        calculator = UnifiedClimateCalculator(
             base_data_path=base_data_path,
-            baseline_period=(1980, 2010),
-            cache_dir=cache_dir,
-            enable_caching=True
+            baseline_period=(1980, 2010)
         )
         
         start = time.time()
-        baseline = calculator.calculate_baseline_percentiles(county_info['bounds'])
+        # Calculate baseline percentiles directly
+        baseline = calculator.calculate_baseline_percentiles_base(
+            bounds=tuple(county_info['bounds']),
+            variables=['tasmax', 'tasmin']
+        )
         elapsed = time.time() - start
+        
+        # Save to cache if cache_dir provided
+        if cache_dir and baseline:
+            import hashlib
+            import pickle
+            cache_path = Path(cache_dir)
+            cache_path.mkdir(parents=True, exist_ok=True)
+            
+            # Generate cache key matching the expected format
+            bounds_tuple = tuple(county_info['bounds'])
+            key_data = f"baseline_percentiles_{bounds_tuple}_{(1980, 2010)}".encode()
+            cache_key = hashlib.md5(key_data).hexdigest()
+            
+            cache_file = cache_path / f"{cache_key}.pkl"
+            with open(cache_file, 'wb') as f:
+                pickle.dump(baseline, f)
         
         return {
             'status': 'success',
@@ -65,12 +87,12 @@ def precompute_all_baselines(shapefile_path, base_data_path, cache_dir=None,
     """Pre-compute baselines for all counties in parallel."""
     
     # Load counties
-    processor = ParallelClimateProcessor(shapefile_path, base_data_path)
+    processor = UnifiedParallelProcessor(shapefile_path, base_data_path)
     
     if county_subset:
-        counties = processor.counties[processor.counties['GEOID'].isin(county_subset)]
+        counties = processor.counties_gdf[processor.counties_gdf['GEOID'].isin(county_subset)]
     else:
-        counties = processor.counties
+        counties = processor.counties_gdf
     
     total_counties = len(counties)
     logging.info(f"Starting baseline computation for {total_counties} counties")
@@ -159,23 +181,28 @@ def precompute_all_baselines(shapefile_path, base_data_path, cache_dir=None,
 
 def verify_cache_coverage(shapefile_path, cache_dir=None):
     """Verify which counties have cached baselines."""
-    from optimized_climate_calculator import OptimizedClimateCalculator
+    import hashlib
     
-    processor = ParallelClimateProcessor(shapefile_path, "/dummy/path")
-    calculator = OptimizedClimateCalculator(
-        base_data_path="/dummy/path",
-        cache_dir=cache_dir,
-        enable_caching=True
-    )
+    processor = UnifiedParallelProcessor(shapefile_path, "/dummy/path")
+    
+    if cache_dir is None:
+        cache_dir = Path.home() / '.climate_cache'
+    else:
+        cache_dir = Path(cache_dir)
     
     cached = 0
     not_cached = 0
     
-    for idx, county in processor.counties.iterrows():
+    for idx, county in processor.counties_gdf.iterrows():
         county_info = processor.prepare_county_info(county)
-        cache_key = calculator._get_cache_key(county_info['bounds'], 'baseline_percentiles')
         
-        if calculator._load_from_cache(cache_key) is not None:
+        # Generate cache key matching the expected format
+        bounds_tuple = tuple(county_info['bounds'])
+        key_data = f"baseline_percentiles_{bounds_tuple}_{(1980, 2010)}".encode()
+        cache_key = hashlib.md5(key_data).hexdigest()
+        
+        cache_file = cache_dir / f"{cache_key}.pkl"
+        if cache_file.exists():
             cached += 1
         else:
             not_cached += 1
@@ -193,8 +220,12 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Pre-compute baseline percentiles for all counties')
-    parser.add_argument('--shapefile', required=True, help='Path to county shapefile')
-    parser.add_argument('--data-path', required=True, help='Path to climate data')
+    parser.add_argument('--shapefile', 
+                        default='/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp',
+                        help='Path to county shapefile')
+    parser.add_argument('--data-path', 
+                        default='/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM',
+                        help='Path to climate data')
     parser.add_argument('--cache-dir', help='Cache directory (default: ~/.climate_cache)')
     parser.add_argument('--workers', type=int, help='Number of workers (default: CPU count - 1)')
     parser.add_argument('--counties', nargs='+', help='Specific county GEOIDs to process')
