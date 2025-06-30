@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 from typing import List, Dict, Tuple, Optional, Callable
 import time
-from climate_indicator_calculator import ClimateIndicatorCalculator
+from .unified_calculator import UnifiedClimateCalculator as ClimateIndicatorCalculator
 
 
 class ParallelClimateProcessor:

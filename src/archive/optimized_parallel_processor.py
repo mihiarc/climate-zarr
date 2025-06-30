@@ -11,8 +11,8 @@ import multiprocessing as mp
 from typing import List, Dict, Tuple, Optional, Callable
 import time
 
-from parallel_processor import ParallelClimateProcessor
-from optimized_climate_calculator import OptimizedClimateCalculator, BatchOptimizedCalculator
+from ..core.parallel_processor import ParallelClimateProcessor
+from .optimized_climate_calculator import OptimizedClimateCalculator, BatchOptimizedCalculator
 
 
 class OptimizedParallelProcessor(ParallelClimateProcessor):

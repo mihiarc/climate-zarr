@@ -18,7 +18,7 @@ import time
 
 warnings.filterwarnings('ignore')
 
-from climate_indicator_calculator import ClimateIndicatorCalculator
+from ..core.climate_indicator_calculator import ClimateIndicatorCalculator
 
 
 class OptimizedClimateCalculator(ClimateIndicatorCalculator):
