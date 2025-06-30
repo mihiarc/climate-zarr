@@ -61,8 +61,6 @@ def test_tile_processing():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
-    # Use merged baseline file for now (TODO: implement lazy loading)
-    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baselines.pkl"
     
     # Initialize progress tracker (4 main test steps)
     progress = ProgressTracker(total_steps=4)
@@ -77,7 +75,6 @@ def test_tile_processing():
     processor = UnifiedParallelProcessor(
         shapefile_path=shapefile_path,
         base_data_path=base_data_path,
-        merged_baseline_path=merged_baseline_path,
         output_dir="results/phase2_test",
         n_workers=32
     )
@@ -160,7 +157,6 @@ def test_tile_processing():
     logger.info("Initializing calculator with Zarr support...")
     calculator = UnifiedClimateCalculator(
         base_data_path=base_data_path,
-        merged_baseline_path=None,  # Use individual cached baselines
         use_zarr=True,
         use_dask=True
     )
@@ -225,8 +221,6 @@ def test_full_parallel_tiles():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
-    # Use merged baseline file for now (TODO: implement lazy loading)
-    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baselines.pkl"
     
     logger.info("\nInitializing processor with 32 workers...")
     

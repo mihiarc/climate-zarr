@@ -21,20 +21,19 @@ logger = logging.getLogger(__name__)
 
 
 class UnifiedParallelProcessor:
-    """Production parallel processor for climate indicators.
+    """Parallel processor for climate indicators.
     
     Features:
     - Dynamic batch sizing based on available resources
     - Progress tracking with ETA
     - Error recovery at batch level
-    - Optimized for merged baseline strategy
+    - Optimized caching strategy
     """
     
     def __init__(
         self,
         shapefile_path: str,
         base_data_path: str,
-        merged_baseline_path: Optional[str] = None,
         output_dir: str = "results",
         n_workers: Optional[int] = None
     ):
@@ -43,13 +42,11 @@ class UnifiedParallelProcessor:
         Args:
             shapefile_path: Path to counties shapefile
             base_data_path: Path to climate data
-            merged_baseline_path: Path to merged baseline file
             output_dir: Directory for output files
             n_workers: Number of worker processes (None for auto)
         """
         self.shapefile_path = Path(shapefile_path)
         self.base_data_path = Path(base_data_path)
-        self.merged_baseline_path = merged_baseline_path
         self.output_dir = Path(output_dir)
         self.n_workers = n_workers or mp.cpu_count()
         
@@ -188,7 +185,6 @@ class UnifiedParallelProcessor:
                     scenarios,
                     indicators_config,
                     self.base_data_path,
-                    self.merged_baseline_path,
                     year_range
                 ): i
                 for i, batch in enumerate(batches)
@@ -246,7 +242,6 @@ class UnifiedParallelProcessor:
         scenarios: List[str],
         indicators_config: Dict[str, Dict[str, Any]],
         base_data_path: str,
-        merged_baseline_path: Optional[str],
         year_range: Optional[Tuple[int, int]] = None
     ) -> Tuple[List[Dict], List[str]]:
         """Process a batch of counties (worker function).
@@ -256,8 +251,7 @@ class UnifiedParallelProcessor:
         """
         # Create calculator for this worker
         calculator = UnifiedClimateCalculator(
-            base_data_path=base_data_path,
-            merged_baseline_path=merged_baseline_path
+            base_data_path=base_data_path
         )
         
         batch_results = []
@@ -444,7 +438,6 @@ class UnifiedParallelProcessor:
         # Initialize calculator with optimizations enabled
         calculator = UnifiedClimateCalculator(
             base_data_path=str(self.base_data_path),
-            merged_baseline_path=self.merged_baseline_path,
             cache_dir=kwargs.get('cache_dir'),
             use_zarr=kwargs.get('use_zarr', False),
             use_dask=kwargs.get('use_dask', True)

@@ -44,45 +44,34 @@ logger = logging.getLogger(__name__)
 
 
 class UnifiedClimateCalculator:
-    """Production climate calculator using merged baseline strategy.
+    """Climate calculator with caching support.
     
-    This calculator uses pre-computed merged baseline files for optimal performance.
-    Falls back to standard calculation if merged baselines are not available.
+    This calculator uses cached baseline files for optimal performance.
+    Calculates baselines on demand if not already cached.
     """
     
     def __init__(
         self,
         base_data_path: str,
-        merged_baseline_path: Optional[str] = None,
         baseline_period: Tuple[int, int] = (1980, 2010),
         cache_dir: Optional[str] = None,
         use_zarr: bool = False,
-        use_dask: bool = True,
-        lazy_load_baselines: bool = True
+        use_dask: bool = True
     ):
         """Initialize the calculator.
         
         Args:
             base_data_path: Path to base climate data
-            merged_baseline_path: Path to merged baseline pickle file
             baseline_period: Tuple of (start_year, end_year) for baseline
             cache_dir: Directory for pre-extracted county data and Zarr stores
             use_zarr: Whether to use Zarr format for cloud-optimized storage
             use_dask: Whether to use Dask for parallel/lazy operations
-            lazy_load_baselines: Whether to load baselines on-demand vs all at init
         """
         self.base_path = Path(base_data_path)
         self.baseline_period = baseline_period
         self.cache_dir = Path(cache_dir) if cache_dir else Path.home() / '.climate_cache'
         self.use_zarr = use_zarr
         self.use_dask = use_dask
-        self.lazy_load_baselines = lazy_load_baselines
-        
-        self.merged_baseline_path = Path(merged_baseline_path) if merged_baseline_path else None
-        self.merged_baselines = None
-        self.baseline_lookup = {}  # GEOID -> baseline data
-        self.baseline_by_bounds = {}  # bounds_key -> baseline data
-        self._baseline_file_handle = None  # For lazy loading
         
         # Create cache directories
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -91,126 +80,12 @@ class UnifiedClimateCalculator:
         self.county_extracts_dir.mkdir(exist_ok=True)
         self.zarr_stores_dir.mkdir(exist_ok=True)
         
-        # Load merged baselines if available
-        if self.merged_baseline_path and self.merged_baseline_path.exists():
-            if self.lazy_load_baselines:
-                # Just verify file exists, don't load yet
-                logger.info(f"Merged baselines available at {self.merged_baseline_path} (lazy loading enabled)")
-            else:
-                # Load all baselines immediately
-                self._load_merged_baselines()
-                logger.info(f"Loaded merged baselines from {self.merged_baseline_path}")
+        # Check if we have cached baselines
+        if self.cache_dir.exists() and any(self.cache_dir.glob("*.pkl")):
+            logger.info(f"Using cached baselines from {self.cache_dir}")
         else:
-            # Check if we have cached baselines
-            cache_dir = Path.home() / '.climate_cache'
-            if cache_dir.exists() and any(cache_dir.glob("*.pkl")):
-                logger.info("Using individual cached baselines (no merged file specified)")
-            else:
-                logger.warning("No baselines available, will calculate on demand")
+            logger.info("No cached baselines found, will calculate on demand")
     
-    def _load_merged_baselines(self):
-        """Load the merged baseline cache file."""
-        try:
-            with open(self.merged_baseline_path, 'rb') as f:
-                cache_data = pickle.load(f)
-            
-            # Handle different formats
-            if isinstance(cache_data, dict):
-                # Check if it's the new format with separate percentile arrays
-                if 'tasmax_p90' in cache_data and 'tasmin_p10' in cache_data:
-                    # New format: convert to expected structure
-                    self.merged_baselines = cache_data
-                    county_info = cache_data.get('county_info', {})
-                    
-                    # Build lookup dictionaries
-                    for geoid, info in county_info.items():
-                        # Create baseline data in expected format
-                        baseline_data = {
-                            90: xr.Dataset({
-                                'tasmax': cache_data['tasmax_p90'].get(geoid)
-                            }) if geoid in cache_data.get('tasmax_p90', {}) else None,
-                            10: xr.Dataset({
-                                'tasmin': cache_data['tasmin_p10'].get(geoid)
-                            }) if geoid in cache_data.get('tasmin_p10', {}) else None
-                        }
-                        
-                        # Only add if we have data
-                        if baseline_data[90] is not None or baseline_data[10] is not None:
-                            self.baseline_lookup[str(geoid)] = baseline_data
-                            
-                            if 'bounds' in info:
-                                bounds_key = self._make_bounds_key(info['bounds'])
-                                self.baseline_by_bounds[bounds_key] = baseline_data
-                else:
-                    # Old format
-                    self.merged_baselines = cache_data
-            elif isinstance(cache_data, list):
-                # Convert list format to lookup dictionaries
-                for item in cache_data:
-                    geoid = item.get('GEOID')
-                    bounds = item.get('bounds')
-                    baseline_data = item.get('baseline_data')
-                    
-                    if geoid and baseline_data:
-                        self.baseline_lookup[geoid] = baseline_data
-                    
-                    if bounds and baseline_data:
-                        bounds_key = self._make_bounds_key(bounds)
-                        self.baseline_by_bounds[bounds_key] = baseline_data
-            
-            logger.info(f"Loaded baselines for {len(self.baseline_lookup)} counties")
-            
-        except Exception as e:
-            logger.error(f"Error loading merged baselines: {e}")
-            self.merged_baselines = None
-    
-    def _make_bounds_key(self, bounds: List[float]) -> str:
-        """Create a hashable key from bounds."""
-        return f"{bounds[0]:.3f},{bounds[1]:.3f},{bounds[2]:.3f},{bounds[3]:.3f}"
-    
-    def _get_baseline_for_county(self, county_id: str) -> Optional[Dict]:
-        """Get baseline for a specific county, loading on-demand if needed."""
-        # If already loaded, return it
-        if county_id in self.baseline_lookup:
-            return self.baseline_lookup[county_id]
-        
-        # If lazy loading is disabled or no merged file, return None
-        if not self.lazy_load_baselines or not self.merged_baseline_path:
-            return None
-            
-        # Load just this county's baseline
-        try:
-            if self._baseline_file_handle is None:
-                with open(self.merged_baseline_path, 'rb') as f:
-                    self._baseline_file_handle = pickle.load(f)
-            
-            cache_data = self._baseline_file_handle
-            
-            if isinstance(cache_data, dict):
-                if 'tasmax_p90' in cache_data and 'tasmin_p10' in cache_data:
-                    county_info = cache_data.get('county_info', {})
-                    
-                    if county_id in county_info:
-                        # Create baseline data for this county
-                        baseline_data = {
-                            90: xr.Dataset({
-                                'tasmax': cache_data['tasmax_p90'].get(county_id)
-                            }) if county_id in cache_data.get('tasmax_p90', {}) else None,
-                            10: xr.Dataset({
-                                'tasmin': cache_data['tasmin_p10'].get(county_id)
-                            }) if county_id in cache_data.get('tasmin_p10', {}) else None
-                        }
-                        
-                        # Cache it for future use
-                        if baseline_data[90] is not None or baseline_data[10] is not None:
-                            self.baseline_lookup[county_id] = baseline_data
-                            logger.debug(f"Lazy loaded baseline for county {county_id}")
-                            return baseline_data
-                            
-        except Exception as e:
-            logger.error(f"Failed to lazy load baseline for county {county_id}: {e}")
-            
-        return None
     
     def get_files_for_period(self, 
                             variable: str, 
@@ -350,25 +225,11 @@ class UnifiedClimateCalculator:
         county_bounds: Optional[List[float]] = None,
         county_id: Optional[str] = None
     ) -> Dict[int, xr.Dataset]:
-        """Calculate or retrieve baseline percentiles.
+        """Calculate or retrieve baseline percentiles from cache.
         
-        First tries to use merged baselines for instant lookup.
-        Falls back to standard calculation if not available.
+        Uses cached baseline files if available, otherwise calculates
+        and caches the results.
         """
-        # Try GEOID lookup first
-        if county_id and county_id in self.baseline_lookup:
-            logger.debug(f"Using merged baseline for county {county_id}")
-            return self.baseline_lookup[county_id]
-        
-        # Try bounds lookup
-        if county_bounds:
-            bounds_key = self._make_bounds_key(county_bounds)
-            if bounds_key in self.baseline_by_bounds:
-                logger.debug(f"Using merged baseline for bounds {bounds_key}")
-                return self.baseline_by_bounds[bounds_key]
-        
-        # Fallback to calculation
-        logger.debug("Calculating baseline percentiles (no merged data available)")
         
         # Convert to base method format
         if county_bounds:
