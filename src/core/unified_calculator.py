@@ -101,7 +101,12 @@ class UnifiedClimateCalculator:
                 self._load_merged_baselines()
                 logger.info(f"Loaded merged baselines from {self.merged_baseline_path}")
         else:
-            logger.warning("No merged baselines available, will calculate on demand")
+            # Check if we have cached baselines
+            cache_dir = Path.home() / '.climate_cache'
+            if cache_dir.exists() and any(cache_dir.glob("*.pkl")):
+                logger.info("Using individual cached baselines (no merged file specified)")
+            else:
+                logger.warning("No baselines available, will calculate on demand")
     
     def _load_merged_baselines(self):
         """Load the merged baseline cache file."""
