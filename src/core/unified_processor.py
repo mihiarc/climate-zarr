@@ -481,19 +481,27 @@ class UnifiedParallelProcessor:
             # Process each county using shared tile data
             for county_id in county_ids:
                 try:
-                    county_results = calculator.process_county_with_shared_data(
-                        county_id, tile_data[scenarios[0]]  # Start with first scenario
+                    # Get county info
+                    county_info = self.counties_gdf[self.counties_gdf['GEOID'] == county_id].iloc[0]
+                    county_bounds = county_info['bounds']
+                    
+                    # Prepare county info dict
+                    county_info_dict = {
+                        'geoid': county_id,
+                        'name': county_info['NAME'],
+                        'state': get_state_name(county_info.get('STATEFP', ''))
+                    }
+                    
+                    # Calculate indicators using the standard method
+                    county_results = calculator.calculate_indicators(
+                        scenarios=scenarios,
+                        county_bounds=county_bounds,
+                        county_info=county_info_dict,
+                        indicators_config=indicators_config,
+                        year_range=year_range
                     )
                     
-                    # Add county metadata
-                    county_info = self.counties_gdf[self.counties_gdf['GEOID'] == county_id].iloc[0]
-                    county_results.update({
-                        'GEOID': county_id,
-                        'NAME': county_info['NAME'],
-                        'STATE': get_state_name(county_info.get('STATEFP', ''))
-                    })
-                    
-                    results.append(county_results)
+                    results.extend(county_results)
                     
                 except Exception as e:
                     logger.error(f"Error processing county {county_id} in tile {tile_id}: {e}")

@@ -38,6 +38,7 @@ from ..utils.shapefile_utils import (
     get_county_bounds,
     get_county_info
 )
+from ..utils.netcdf_lock import get_netcdf_lock
 
 warnings.filterwarnings('ignore')
 logger = logging.getLogger(__name__)
@@ -601,16 +602,17 @@ class UnifiedClimateCalculator:
             
         try:
             if self.use_dask:
-                # Use Dask for parallel loading
-                ds = xr.open_mfdataset(
-                    files,
-                    combine='by_coords',
-                    chunks={'time': 365},
-                    parallel=True,
-                    preprocess=lambda ds: ds.sel(**preselect_bounds) if preselect_bounds else ds
-                )
+                # Use global lock for xr.open_mfdataset to prevent concurrent access issues
+                with get_netcdf_lock():
+                    ds = xr.open_mfdataset(
+                        files,
+                        combine='by_coords',
+                        chunks={'time': 365},
+                        parallel=False,  # Disable parallel to avoid segfaults
+                        preprocess=lambda ds: ds.sel(**preselect_bounds) if preselect_bounds else ds
+                    )
             else:
-                # Load without Dask
+                # Load without Dask - load_netcdf already handles locking
                 datasets = []
                 for f in files:
                     ds = load_netcdf(f, preselect_bounds=preselect_bounds)
@@ -667,21 +669,21 @@ class UnifiedClimateCalculator:
             'lon': 100    # ~25 degrees
         }
         
-        # Open all files as a single dataset with Dask
-        if self.use_dask:
-            ds = xr.open_mfdataset(
-                files,
-                combine='by_coords',
-                chunks=chunks,
-                parallel=True
-            )
-        else:
-            ds = xr.open_mfdataset(files, combine='by_coords')
+        # Open all files as a single dataset with locking
+        with get_netcdf_lock():
+            if self.use_dask:
+                ds = xr.open_mfdataset(
+                    files,
+                    combine='by_coords',
+                    chunks=chunks,
+                    parallel=False  # Disable parallel to avoid segfaults
+                )
+            else:
+                ds = xr.open_mfdataset(files, combine='by_coords')
         
         # Set up Zarr encoding with compression
         encoding = {
             variable: {
-                'compressor': zarr.Blosc(cname='zstd', clevel=3),
                 'chunks': tuple(chunks.get(dim, ds[variable].sizes[dim]) 
                               for dim in ds[variable].dims)
             }

@@ -17,6 +17,8 @@ import xarray as xr
 import pandas as pd
 import geopandas as gpd
 
+from .netcdf_lock import get_netcdf_lock, get_file_lock, get_netcdf_semaphore
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,12 +71,20 @@ def load_netcdf(
         return None
     
     try:
-        # Open with pre-selection if bounds provided
-        if preselect_bounds:
-            ds = xr.open_dataset(file_path, chunks=chunks)
-            ds = ds.sel(**preselect_bounds)
-        else:
-            ds = xr.open_dataset(file_path, chunks=chunks)
+        # Use semaphore to limit concurrent NetCDF operations
+        with get_netcdf_semaphore():
+            # Use file-specific lock to prevent concurrent access issues
+            with get_file_lock(file_path):
+                # Open with pre-selection if bounds provided
+                if preselect_bounds:
+                    ds = xr.open_dataset(file_path, chunks=chunks)
+                    ds = ds.sel(**preselect_bounds)
+                else:
+                    ds = xr.open_dataset(file_path, chunks=chunks)
+                
+                # Load data into memory to avoid keeping file handle open
+                # This prevents issues with concurrent access
+                ds = ds.load()
         
         return ds
         
