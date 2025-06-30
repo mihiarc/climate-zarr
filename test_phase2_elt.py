@@ -31,11 +31,13 @@ def test_tile_processing():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
+    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baseline_NorESM2-LM_1980-2010.pkl"
     
     # Initialize processor
     processor = UnifiedParallelProcessor(
         shapefile_path=shapefile_path,
         base_data_path=base_data_path,
+        merged_baseline_path=merged_baseline_path,
         output_dir="results/phase2_test",
         n_workers=4
     )
@@ -107,6 +109,7 @@ def test_tile_processing():
     
     calculator = UnifiedClimateCalculator(
         base_data_path=base_data_path,
+        merged_baseline_path=merged_baseline_path,
         use_zarr=True,
         use_dask=True
     )
@@ -153,11 +156,13 @@ def test_full_parallel_tiles():
     # Configuration
     shapefile_path = "/home/mihiarc/repos/claude_climate/data/shapefiles/tl_2024_us_county.shp"
     base_data_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/NorESM2-LM"
+    merged_baseline_path = "/media/mihiarc/RPA1TB/CLIMATE_DATA/merged_baselines/merged_baseline_NorESM2-LM_1980-2010.pkl"
     
     # Initialize processor
     processor = UnifiedParallelProcessor(
         shapefile_path=shapefile_path,
         base_data_path=base_data_path,
+        merged_baseline_path=merged_baseline_path,
         output_dir="results/phase2_parallel",
         n_workers=8  # Use 8 workers for parallel processing
     )
