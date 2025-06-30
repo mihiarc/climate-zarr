@@ -73,13 +73,13 @@ def test_tile_processing():
     logger.info(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Initialize processor
-    logger.info("\nInitializing processor with 16 workers...")
+    logger.info("\nInitializing processor with 32 workers...")
     processor = UnifiedParallelProcessor(
         shapefile_path=shapefile_path,
         base_data_path=base_data_path,
         merged_baseline_path=merged_baseline_path,
         output_dir="results/phase2_test",
-        n_workers=16
+        n_workers=32
     )
     logger.info(f"✓ Processor initialized with {processor.n_workers} workers")
     
@@ -226,7 +226,7 @@ def test_full_parallel_tiles():
     # Skip merged baseline file - use individual cached baselines instead
     merged_baseline_path = None
     
-    logger.info("\nInitializing processor with 16 workers...")
+    logger.info("\nInitializing processor with 32 workers...")
     
     # Initialize processor
     processor = UnifiedParallelProcessor(
@@ -234,7 +234,7 @@ def test_full_parallel_tiles():
         base_data_path=base_data_path,
         merged_baseline_path=merged_baseline_path,
         output_dir="results/phase2_parallel",
-        n_workers=16  # Use 16 workers for parallel processing
+        n_workers=32  # Use 32 workers for parallel processing
     )
     
     # Get all California counties
