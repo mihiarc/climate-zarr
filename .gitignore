@@ -73,3 +73,6 @@ CLIMATE_DATA/
 
 # Archive (optional - uncomment if you want to exclude archive)
 # archive/
+
+# Old src directory (now reorganized into climate_analysis)
+src/

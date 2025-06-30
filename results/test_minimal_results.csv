@@ -1,0 +1,6 @@
+GEOID,NAME,STATE,scenario,year,tg_mean_C,tx_days_above_90F,tn_days_below_0F,precip_accumulation_mm,days_precip_over_25.4mm
+31039,Cuming,Nebraska,historical,2010,9.576135253906273,11,16,734.0369262695312,2
+31039,Cuming,Nebraska,historical,2011,11.468835449218773,35,8,678.1325073242188,2
+31039,Cuming,Nebraska,historical,2012,10.837915039062523,35,13,558.6663208007812,2
+31039,Cuming,Nebraska,historical,2013,8.740625000000023,22,25,931.7781372070312,2
+31039,Cuming,Nebraska,historical,2014,10.438104248046898,30,8,639.8474731445312,3

@@ -15,13 +15,13 @@ import pickle
 import warnings
 from xclim import atmos
 
-from ..utils.climate_utils import (
+from climate_analysis.utils.climate_utils import (
     create_annual_record,
     adjust_longitude_bounds,
     calculate_area_weighted_mean,
     format_results_for_county
 )
-from ..utils.file_operations import (
+from climate_analysis.utils.file_operations import (
     load_netcdf,
     load_pickle,
     find_files

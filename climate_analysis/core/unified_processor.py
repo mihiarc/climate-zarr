@@ -13,8 +13,8 @@ import multiprocessing as mp
 import pandas as pd
 import geopandas as gpd
 
-from .unified_calculator import UnifiedClimateCalculator
-from ..utils.file_operations import ensure_directory, save_json
+from climate_analysis.core.unified_calculator import UnifiedClimateCalculator
+from climate_analysis.utils.file_operations import ensure_directory, save_json
 
 logger = logging.getLogger(__name__)
 
