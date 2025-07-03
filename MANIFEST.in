@@ -24,3 +24,6 @@ recursive-exclude data *
 recursive-exclude regional_counties *
 recursive-exclude historical *
 exclude uv.lock
+
+# Optionally exclude tests from distribution
+# recursive-exclude tests *
