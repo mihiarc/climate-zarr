@@ -64,6 +64,39 @@ python climate_cli.py create-zarr data/ -o output.zarr --region conus --interact
 python climate_cli.py county-stats data.zarr conus -v pr -t 25.4 --interactive false
 ```
 
+## 📦 Data Requirements
+
+**Important**: This toolkit requires you to provide your own data files. The repository does not include large data files to keep it lightweight and fast to clone.
+
+### Required Data Files
+
+1. **🌡️ Climate Data**: NetCDF files with climate variables (precipitation, temperature, etc.)
+   - Sources: [NASA NEX-GDDP](https://www.nccs.nasa.gov/services/data-collections/land-based-products/nex-gddp-cmip6), [ECMWF ERA5](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels), [NOAA Climate Data](https://www.ncei.noaa.gov/data/)
+   - Format: CF-compliant NetCDF with time, lat, lon dimensions
+   - Place in: `data/` directory
+
+2. **🗺️ US County Boundaries**: Census TIGER/Line county shapefiles
+   - **Quick Setup**: See detailed instructions in [`utils/README.md`](utils/README.md)
+   - **Source**: [US Census Bureau TIGER/Line](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html)
+   - **Processing**: Use our `utils/split_counties_by_region.py` script to split by regions
+
+### Quick Data Setup
+
+```bash
+# 1. Place your NetCDF files in the data directory
+mkdir -p data/
+# Copy your .nc files to data/
+
+# 2. Download and prepare county shapefiles (see utils/README.md for details)
+cd utils/
+# Follow instructions in utils/README.md to download and split shapefiles
+python split_counties_by_region.py
+
+# 3. You're ready to go!
+cd ..
+python climate_cli.py wizard
+```
+
 ## 🚀 Quick Start
 
 ### Installation
@@ -233,10 +266,17 @@ climate-zarr/
 ├── calculate_county_stats.py   # County statistics processor
 ├── climate_config.py           # Configuration management
 ├── demo_cli.py                 # Interactive demo script
-├── data/                       # NetCDF input files
-├── regional_counties/          # County shapefiles by region
+├── utils/
+│   ├── split_counties_by_region.py  # County shapefile splitter
+│   └── README.md               # Data preparation instructions
+├── data/                       # 📁 NetCDF input files (user-provided)
+├── regional_counties/          # 🗺️ County shapefiles by region (user-generated)
 └── pyproject.toml             # Project dependencies
 ```
+
+**Note**: `data/` and `regional_counties/` directories are not included in the repository. Users must:
+1. Add their own NetCDF climate data to `data/`
+2. Follow [`utils/README.md`](utils/README.md) to download and prepare county shapefiles
 
 ## 🎯 Usage Examples
 
