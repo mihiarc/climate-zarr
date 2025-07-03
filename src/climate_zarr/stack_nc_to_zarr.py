@@ -15,7 +15,7 @@ console = Console()
 
 # Import modern configuration
 try:
-    from climate_config import get_config
+    from climate_zarr.climate_config import get_config
     CONFIG = get_config()
     HAS_CONFIG = True
 except ImportError:

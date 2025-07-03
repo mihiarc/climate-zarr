@@ -20,6 +20,43 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyPI build artifacts
+*.whl
+*.tar.gz
+
+# Modern build systems
+.pdm-python
+.pdm.toml
+__pypackages__/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Testing
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
 
 # Environment
 .env

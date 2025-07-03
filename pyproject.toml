@@ -1,8 +1,28 @@
 [project]
 name = "climate-zarr"
 version = "0.1.0"
-description = "Convert NetCDF climate data to Zarr format"
+description = "Interactive CLI toolkit for processing climate data with NetCDF to Zarr conversion and county-level analysis"
+authors = [{name = "Chris Mihiar", email = "chris.mihiar.fs@gmail.com"}]
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
+keywords = ["climate", "zarr", "netcdf", "data-processing", "geospatial", "science", "county"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "xarray>=2024.1.0",
     "zarr>=2.16.0",
@@ -32,11 +52,35 @@ dependencies = [
     "questionary>=2.1.0",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "pytest-mock>=3.11.0",
+]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.5.0",
+]
+
 [project.scripts]
-climate-zarr = "climate_cli:app"
+climate-zarr = "climate_zarr.climate_cli:app"
+
+[project.urls]
+"Homepage" = "https://github.com/mihiarc/climate-zarr"
+"Bug Tracker" = "https://github.com/mihiarc/climate-zarr/issues"
+"Documentation" = "https://github.com/mihiarc/climate-zarr#readme"
+
+[tool.setuptools]
 
 [tool.setuptools.packages.find]
-exclude = ["historical*", "tl_2024_us_county*", "regional_counties*"]
+where = ["src"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+climate_zarr = ["py.typed"]
 
 [build-system]
 requires = ["setuptools>=61.0"]

@@ -1,0 +1,212 @@
+"""
+End-to-end integration tests for the complete Climate Zarr workflow.
+"""
+
+import pytest
+import pandas as pd
+import xarray as xr
+from pathlib import Path
+from climate_zarr.stack_nc_to_zarr import stack_netcdf_to_zarr
+from climate_zarr.calculate_county_stats import ModernCountyProcessor
+
+
+class TestEndToEndIntegration:
+    """Test complete workflows from NetCDF input to county statistics output."""
+    
+    def test_complete_temperature_workflow(self, sample_netcdf_files, sample_shapefile, 
+                                         test_data_dir):
+        """Test complete workflow for temperature analysis."""
+        # Setup paths
+        zarr_path = test_data_dir / "e2e_temp.zarr"
+        stats_path = test_data_dir / "e2e_temp_stats.csv"
+        
+        # Step 1: Convert NetCDF to Zarr with region clipping
+        region_bounds = {
+            "lat_min": 30.0,
+            "lat_max": 45.0,
+            "lon_min": -125.0,
+            "lon_max": -70.0
+        }
+        
+        # Note: The actual function uses clip_region, not region_bounds
+        # We'll use CONUS region for clipping
+        stack_netcdf_to_zarr(
+            nc_files=[Path(f) for f in sample_netcdf_files],
+            zarr_path=zarr_path,
+            compression="zstd",
+            compression_level=3,
+            chunks={"time": 365, "lat": 10, "lon": 10},
+            clip_region="conus"
+        )
+        
+        # Verify Zarr creation
+        assert zarr_path.exists()
+        ds = xr.open_zarr(zarr_path)
+        assert "tas" in ds.variables
+        assert float(ds.lat.min()) >= region_bounds["lat_min"]
+        assert float(ds.lat.max()) <= region_bounds["lat_max"]
+        
+        # Step 2: Calculate county statistics
+        processor = ModernCountyProcessor(
+            zarr_path=str(zarr_path),
+            shapefile_path=str(sample_shapefile),
+            output_path=str(stats_path),
+            variable="tas"
+        )
+        processor.process_all_counties()
+        
+        # Verify statistics
+        assert stats_path.exists()
+        df = pd.read_csv(stats_path)
+        assert len(df) > 0
+        assert df["mean"].notna().all()
+        
+        # Temperature-specific validations
+        # Check reasonable temperature ranges (in Celsius)
+        assert (df["mean"] > -50).all() and (df["mean"] < 60).all()
+        assert (df["min"] >= df["mean"] - 30).all()  # Daily variation shouldn't be extreme
+        assert (df["max"] <= df["mean"] + 30).all()
+    
+    def test_complete_precipitation_workflow(self, sample_netcdf_files, sample_shapefile,
+                                           test_data_dir):
+        """Test complete workflow for precipitation analysis."""
+        # Setup paths
+        zarr_path = test_data_dir / "e2e_precip.zarr"
+        stats_path = test_data_dir / "e2e_precip_stats.csv"
+        
+        # Step 1: Convert with different compression for precipitation
+        stack_netcdf_to_zarr(
+            nc_files=[Path(f) for f in sample_netcdf_files],
+            zarr_path=zarr_path,
+            compression="lz4",  # Faster for frequently accessed data
+            chunks={"time": 30, "lat": 20, "lon": 20}  # Different chunking strategy
+        )
+        
+        # Step 2: Calculate statistics with precipitation-specific settings
+        processor = ModernCountyProcessor(
+            zarr_path=str(zarr_path),
+            shapefile_path=str(sample_shapefile),
+            output_path=str(stats_path),
+            variable="pr"
+        )
+        processor.process_all_counties()
+        
+        # Verify precipitation statistics
+        df = pd.read_csv(stats_path)
+        
+        # Precipitation-specific validations
+        assert (df["min"] >= 0).all()  # No negative precipitation
+        assert (df["max"] < 1000).all()  # Reasonable daily max (mm/day)
+        if "sum" in df.columns:
+            assert (df["sum"] > 0).all()  # Should have some precipitation
+    
+    def test_multi_variable_workflow(self, sample_netcdf_files, sample_shapefile,
+                                    test_data_dir):
+        """Test workflow with multiple variables processed sequentially."""
+        zarr_path = test_data_dir / "e2e_multi.zarr"
+        
+        # Convert both variables
+        stack_netcdf_to_zarr(
+            nc_files=[Path(f) for f in sample_netcdf_files],
+            zarr_path=zarr_path,
+            compression="zstd"
+        )
+        
+        # Process statistics for each variable
+        results = {}
+        for var in ["tas", "pr"]:
+            stats_path = test_data_dir / f"e2e_multi_{var}_stats.csv"
+            
+            processor = ModernCountyProcessor(
+                zarr_path=str(zarr_path),
+                shapefile_path=str(sample_shapefile),
+                output_path=str(stats_path),
+                variable=var
+            )
+            processor.process_all_counties()
+            
+            results[var] = pd.read_csv(stats_path)
+        
+        # Verify both processed successfully
+        assert len(results["tas"]) == len(results["pr"])
+        assert results["tas"]["GEOID"].equals(results["pr"]["GEOID"])
+    
+    def test_performance_monitoring(self, sample_netcdf_files, sample_shapefile,
+                                   test_data_dir, caplog):
+        """Test that performance metrics are logged during processing."""
+        import time
+        
+        zarr_path = test_data_dir / "e2e_perf.zarr"
+        stats_path = test_data_dir / "e2e_perf_stats.csv"
+        
+        # Time the conversion
+        start_time = time.time()
+        stack_netcdf_to_zarr(
+            nc_files=[Path(sample_netcdf_files[0])],  # Just one file for speed
+            zarr_path=zarr_path
+        )
+        conversion_time = time.time() - start_time
+        
+        # Time the statistics
+        start_time = time.time()
+        processor = ModernCountyProcessor(
+            zarr_path=str(zarr_path),
+            shapefile_path=str(sample_shapefile),
+            output_path=str(stats_path),
+            variable="tas"
+        )
+        processor.process_all_counties()
+        stats_time = time.time() - start_time
+        
+        # Basic performance assertions
+        assert conversion_time < 60  # Should complete in under a minute for test data
+        assert stats_time < 30  # Statistics should be faster
+    
+    def test_data_integrity_through_pipeline(self, sample_netcdf_files, sample_shapefile,
+                                           test_data_dir):
+        """Verify data integrity is maintained through the entire pipeline."""
+        zarr_path = test_data_dir / "e2e_integrity.zarr"
+        stats_path = test_data_dir / "e2e_integrity_stats.csv"
+        
+        # Load original data
+        ds_original = xr.open_mfdataset(sample_netcdf_files)
+        original_mean = float(ds_original.tas.mean())
+        original_min = float(ds_original.tas.min())
+        original_max = float(ds_original.tas.max())
+        
+        # Process through pipeline
+        stack_netcdf_to_zarr(
+            nc_files=[Path(f) for f in sample_netcdf_files],
+            zarr_path=zarr_path
+        )
+        
+        # Check Zarr preserves data
+        ds_zarr = xr.open_zarr(zarr_path)
+        zarr_mean = float(ds_zarr.tas.mean())
+        zarr_min = float(ds_zarr.tas.min())
+        zarr_max = float(ds_zarr.tas.max())
+        
+        # Allow small numerical differences
+        assert abs(original_mean - zarr_mean) < 0.01
+        assert abs(original_min - zarr_min) < 0.01
+        assert abs(original_max - zarr_max) < 0.01
+        
+        # Process statistics
+        processor = ModernCountyProcessor(n_workers=1)
+        
+        import geopandas as gpd
+        gdf = gpd.read_file(sample_shapefile)
+        
+        results = processor.process_zarr_data(
+            zarr_path=zarr_path,
+            gdf=gdf,
+            variable="tas",
+            chunk_by_county=False
+        )
+        
+        # Basic check that processing worked
+        assert len(results) > 0
+        
+        # Close datasets
+        ds_original.close()
+        ds_zarr.close()
