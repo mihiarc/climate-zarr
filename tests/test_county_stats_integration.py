@@ -79,6 +79,15 @@ class TestCountyStatsIntegration:
         import geopandas as gpd
         gdf = gpd.read_file(sample_shapefile)
         
+        # Add required columns
+        if 'county_id' not in gdf.columns:
+            gdf['county_id'] = gdf.get('GEOID', range(len(gdf)))
+        if 'county_name' not in gdf.columns:
+            gdf['county_name'] = gdf.get('NAME', [f'County_{i}' for i in range(len(gdf))])
+        if 'state' not in gdf.columns:
+            gdf['state'] = gdf.get('STATEFP', '')
+        gdf['raster_id'] = range(1, len(gdf) + 1)
+        
         results = processor.process_zarr_data(
             zarr_path=zarr_store_with_data,
             gdf=gdf,
@@ -102,6 +111,15 @@ class TestCountyStatsIntegration:
         import geopandas as gpd
         gdf = gpd.read_file(sample_shapefile)
         
+        # Add required columns
+        if 'county_id' not in gdf.columns:
+            gdf['county_id'] = gdf.get('GEOID', range(len(gdf)))
+        if 'county_name' not in gdf.columns:
+            gdf['county_name'] = gdf.get('NAME', [f'County_{i}' for i in range(len(gdf))])
+        if 'state' not in gdf.columns:
+            gdf['state'] = gdf.get('STATEFP', '')
+        gdf['raster_id'] = range(1, len(gdf) + 1)
+        
         results = processor.process_zarr_data(
             zarr_path=zarr_store_with_data,
             gdf=gdf,
@@ -116,6 +134,15 @@ class TestCountyStatsIntegration:
         """Test parallel processing of counties."""
         import geopandas as gpd
         gdf = gpd.read_file(sample_shapefile)
+        
+        # Add required columns
+        if 'county_id' not in gdf.columns:
+            gdf['county_id'] = gdf.get('GEOID', range(len(gdf)))
+        if 'county_name' not in gdf.columns:
+            gdf['county_name'] = gdf.get('NAME', [f'County_{i}' for i in range(len(gdf))])
+        if 'state' not in gdf.columns:
+            gdf['state'] = gdf.get('STATEFP', '')
+        gdf['raster_id'] = range(1, len(gdf) + 1)
         
         # Process with multiple workers
         processor_parallel = ModernCountyProcessor(n_workers=2)
@@ -163,6 +190,15 @@ class TestCountyStatsIntegration:
         
         import geopandas as gpd
         gdf = gpd.read_file(sample_shapefile)
+        
+        # Add required columns
+        if 'county_id' not in gdf.columns:
+            gdf['county_id'] = gdf.get('GEOID', range(len(gdf)))
+        if 'county_name' not in gdf.columns:
+            gdf['county_name'] = gdf.get('NAME', [f'County_{i}' for i in range(len(gdf))])
+        if 'state' not in gdf.columns:
+            gdf['state'] = gdf.get('STATEFP', '')
+        gdf['raster_id'] = range(1, len(gdf) + 1)
         
         # Just test that processing completes
         results = processor.process_zarr_data(
