@@ -10,7 +10,7 @@ A powerful, **interactive CLI toolkit** for processing climate data with guided 
 - **🌡️ Multiple Variables**: Support for precipitation, temperature, and extreme weather analysis
 - **⚡ Modern Performance**: Leverages Dask, parallel processing, and modern data formats
 - **🎨 Beautiful CLI**: Rich-powered interface with progress bars and beautiful output
-- 
+
 ## ✨ Interactive Features
 
 - **🧙‍♂️ Interactive Wizard**: Complete guided experience for beginners and experts
