@@ -1,6 +1,33 @@
 # 🌡️ Climate Zarr Toolkit
 
+[![PyPI version](https://badge.fury.io/py/climate-zarr.svg)](https://badge.fury.io/py/climate-zarr)
+[![Python](https://img.shields.io/pypi/pyversions/climate-zarr.svg)](https://pypi.org/project/climate-zarr/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 A powerful, **interactive CLI toolkit** for processing climate data with guided wizards, smart prompts, and beautiful user experiences. Features cutting-edge NetCDF to Zarr conversion and county-level statistical analysis.
+
+## 📦 Installation
+
+### From PyPI (Recommended)
+
+```bash
+pip install climate-zarr
+```
+
+Or with [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv pip install climate-zarr
+```
+
+### From Source
+
+```bash
+git clone https://github.com/yourusername/climate-zarr.git
+cd climate-zarr
+pip install -e .
+```
 
 ## 🚀 Main Features
 
@@ -30,7 +57,7 @@ Complete guided experience with step-by-step instructions:
 
 ```bash
 # Launch the interactive wizard
-python climate_cli.py wizard
+climate-zarr wizard
 
 # The wizard will guide you through:
 # 1. ✨ Choose your workflow (convert, analyze, or both)
@@ -47,11 +74,11 @@ Individual commands with intelligent prompting:
 
 ```bash
 # Interactive NetCDF → Zarr conversion
-python climate_cli.py create-zarr
+climate-zarr create-zarr
 # Prompts: Select files → Output name → Region? → Compression?
 
 # Interactive county statistics
-python climate_cli.py county-stats  
+climate-zarr county-stats  
 # Prompts: Zarr path → Region → Variable → Threshold → Output file
 ```
 
@@ -59,9 +86,9 @@ python climate_cli.py county-stats
 Traditional CLI for scripts and automation:
 
 ```bash
-# Non-interactive mode (disable prompts)
-python climate_cli.py create-zarr data/ -o output.zarr --region conus --interactive false
-python climate_cli.py county-stats data.zarr conus -v pr -t 25.4 --interactive false
+# Non-interactive mode (skip prompts)
+climate-zarr create-zarr data/ -o output.zarr --region conus
+climate-zarr county-stats data.zarr conus -v pr -t 25.4
 ```
 
 ## 📦 Data Requirements
