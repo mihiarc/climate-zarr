@@ -1,8 +1,17 @@
-# 🌡️ Climate Zarr Toolkit - Interactive 2025 Edition
+# 🌡️ Climate Zarr Toolkit
 
 A powerful, **interactive CLI toolkit** for processing climate data with guided wizards, smart prompts, and beautiful user experiences. Features cutting-edge NetCDF to Zarr conversion and county-level statistical analysis.
 
-## ✨ Interactive Features (NEW!)
+## 🚀 Main Features
+
+- **🗜️ NetCDF → Zarr Conversion**: Convert multiple NetCDF files to optimized Zarr format with compression
+- **📈 County Statistics**: Calculate detailed climate statistics by county/region with parallel processing
+- **🗺️ Regional Clipping**: Built-in support for US regions (CONUS, Alaska, Hawaii, etc.)
+- **🌡️ Multiple Variables**: Support for precipitation, temperature, and extreme weather analysis
+- **⚡ Modern Performance**: Leverages Dask, parallel processing, and modern data formats
+- **🎨 Beautiful CLI**: Rich-powered interface with progress bars and beautiful output
+- 
+## ✨ Interactive Features
 
 - **🧙‍♂️ Interactive Wizard**: Complete guided experience for beginners and experts
 - **🎯 Smart Prompts**: Intelligent parameter suggestions with beautiful selection menus
@@ -11,15 +20,6 @@ A powerful, **interactive CLI toolkit** for processing climate data with guided 
 - **🗺️ Visual Region Selection**: Choose regions with descriptions and coverage details
 - **🔬 Variable Picker**: Climate variable selection with tooltips and explanations
 - **⚡ Performance Tuning**: Interactive optimization suggestions for your workflow
-
-## 🚀 Traditional Features
-
-- **🗜️ NetCDF → Zarr Conversion**: Convert multiple NetCDF files to optimized Zarr format with compression
-- **📈 County Statistics**: Calculate detailed climate statistics by county/region with parallel processing
-- **🗺️ Regional Clipping**: Built-in support for US regions (CONUS, Alaska, Hawaii, etc.)
-- **🌡️ Multiple Variables**: Support for precipitation, temperature, and extreme weather analysis
-- **⚡ Modern Performance**: Leverages Dask, parallel processing, and modern data formats
-- **🎨 Beautiful CLI**: Rich-powered interface with progress bars and beautiful output
 
 ## 🎮 Interactive vs Command-Line Modes
 
