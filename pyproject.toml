@@ -85,3 +85,9 @@ climate_zarr = ["py.typed"]
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "rioxarray>=0.19.0",
+]
