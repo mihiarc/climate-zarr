@@ -6,6 +6,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List
 import warnings
+import multiprocessing as mp
+import time
 
 import numpy as np
 import pandas as pd
@@ -25,6 +27,54 @@ except ImportError:
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 console = Console()
+
+# Global progress tracking
+progress_manager = None
+progress_task = None
+
+
+class ProgressTracker:
+    """Shared progress tracker for multiprocessing."""
+    
+    def __init__(self):
+        self.manager = mp.Manager()
+        self.progress_queue = self.manager.Queue()
+        self.total_counties = 0
+        self.processed_counties = 0
+        
+    def set_total(self, total: int):
+        """Set total number of counties to process."""
+        self.total_counties = total
+        self.processed_counties = 0
+        
+    def update(self, count: int = 1):
+        """Update progress by count."""
+        self.progress_queue.put(count)
+        
+    def get_progress(self) -> int:
+        """Get current progress updates."""
+        updates = 0
+        while not self.progress_queue.empty():
+            try:
+                updates += self.progress_queue.get_nowait()
+            except:
+                break
+        return updates
+
+# Global progress tracker
+_progress_tracker = None
+
+def init_progress_tracker():
+    """Initialize global progress tracker."""
+    global _progress_tracker
+    _progress_tracker = ProgressTracker()
+    return _progress_tracker
+
+def update_progress(count: int = 1):
+    """Update global progress tracker."""
+    global _progress_tracker
+    if _progress_tracker:
+        _progress_tracker.update(count)
 
 
 class ModernCountyProcessor:
@@ -171,13 +221,9 @@ class ModernCountyProcessor:
         # Handle coordinate systems
         pr_data = self._standardize_coordinates(pr_data)
         
-        # Determine processing approach
-        if chunk_by_county and len(gdf) > 50:
-            console.print("[cyan]Using county-chunked processing for large datasets[/cyan]")
-            return self._process_chunked_counties_precip(pr_data, gdf, scenario, threshold_mm)
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return self._process_vectorized_precip(pr_data, gdf, scenario, threshold_mm)
+        # Always use vectorized processing for simplicity and reliability
+        console.print("[cyan]Using vectorized processing[/cyan]")
+        return self._process_vectorized_precip(pr_data, gdf, scenario, threshold_mm)
     
     def _process_temperature_data(
         self,
@@ -197,13 +243,9 @@ class ModernCountyProcessor:
         # Handle coordinate systems
         tas_data = self._standardize_coordinates(tas_data)
         
-        # Determine processing approach
-        if chunk_by_county and len(gdf) > 50:
-            console.print("[cyan]Using county-chunked processing for large datasets[/cyan]")
-            return self._process_chunked_counties_temp(tas_data, gdf, scenario)
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return self._process_vectorized_temp(tas_data, gdf, scenario)
+        # Always use vectorized processing for simplicity and reliability
+        console.print("[cyan]Using vectorized processing[/cyan]")
+        return self._process_vectorized_temp(tas_data, gdf, scenario)
     
     def _process_tasmax_data(
         self,
@@ -229,13 +271,9 @@ class ModernCountyProcessor:
         # Handle coordinate systems
         tasmax_data = self._standardize_coordinates(tasmax_data)
         
-        # Determine processing approach
-        if chunk_by_county and len(gdf) > 50:
-            console.print("[cyan]Using county-chunked processing for large datasets[/cyan]")
-            return self._process_chunked_counties_tasmax(tasmax_data, gdf, scenario, threshold_temp_c)
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return self._process_vectorized_tasmax(tasmax_data, gdf, scenario, threshold_temp_c)
+        # Always use vectorized processing for simplicity and reliability
+        console.print("[cyan]Using vectorized processing[/cyan]")
+        return self._process_vectorized_tasmax(tasmax_data, gdf, scenario, threshold_temp_c)
     
     def _process_tasmin_data(
         self,
@@ -255,13 +293,9 @@ class ModernCountyProcessor:
         # Handle coordinate systems
         tasmin_data = self._standardize_coordinates(tasmin_data)
         
-        # Determine processing approach
-        if chunk_by_county and len(gdf) > 50:
-            console.print("[cyan]Using county-chunked processing for large datasets[/cyan]")
-            return self._process_chunked_counties_tasmin(tasmin_data, gdf, scenario)
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return self._process_vectorized_tasmin(tasmin_data, gdf, scenario)
+        # Always use vectorized processing for simplicity and reliability
+        console.print("[cyan]Using vectorized processing[/cyan]")
+        return self._process_vectorized_tasmin(tasmin_data, gdf, scenario)
     
     def _standardize_coordinates(self, data: xr.DataArray) -> xr.DataArray:
         """Standardize coordinate system and spatial reference."""
@@ -378,9 +412,10 @@ class ModernCountyProcessor:
             
             if self.client and DISTRIBUTED_AVAILABLE:
                 # Use Dask distributed processing
-                task = progress.add_task("Processing county chunks (distributed)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (distributed)...", total=len(gdf))
                 
                 futures = []
+                future_to_size = {}
                 for chunk in county_chunks:
                     future = self.client.submit(
                         self._process_county_chunk_temp,
@@ -389,34 +424,44 @@ class ModernCountyProcessor:
                         scenario
                     )
                     futures.append(future)
+                    future_to_size[future] = len(chunk)
                 
                 for future in as_completed(futures):
                     chunk_results = future.result()
                     results.extend(chunk_results)
-                    progress.advance(task)
+                    # Advance by the number of counties in this chunk
+                    chunk_size = future_to_size[future]
+                    progress.advance(task, advance=chunk_size)
             
             else:
                 # Use multiprocessing
-                task = progress.add_task("Processing county chunks (multiprocessing)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (multiprocessing)...", total=len(gdf))
                 
                 with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    futures = [
-                        executor.submit(
+                    futures = []
+                    chunk_sizes = []
+                    for chunk in county_chunks:
+                        future = executor.submit(
                             self._process_county_chunk_temp,
                             tas_data,
                             chunk,
                             scenario
                         )
-                        for chunk in county_chunks
-                    ]
+                        futures.append(future)
+                        chunk_sizes.append(len(chunk))
+                    
+                    # Map futures to their chunk sizes for proper tracking
+                    future_to_size = dict(zip(futures, chunk_sizes))
                     
                     for future in as_completed(futures):
                         chunk_results = future.result()
                         results.extend(chunk_results)
-                        progress.advance(task)
+                        # Advance by the number of counties in this chunk
+                        chunk_size = future_to_size[future]
+                        progress.advance(task, advance=chunk_size)
         
         return pd.DataFrame(results)
-
+    
     def _process_chunked_counties(
         self,
         pr_data: xr.DataArray,
@@ -425,6 +470,11 @@ class ModernCountyProcessor:
         threshold_mm: float
     ) -> pd.DataFrame:
         """Process counties in chunks for memory efficiency."""
+        
+        # Initialize progress tracker
+        global _progress_tracker
+        _progress_tracker = init_progress_tracker()
+        _progress_tracker.set_total(len(gdf))
         
         # Split counties into chunks
         chunk_size = max(10, len(gdf) // self.n_workers)
@@ -445,47 +495,312 @@ class ModernCountyProcessor:
             
             if self.client and DISTRIBUTED_AVAILABLE:
                 # Use Dask distributed processing
-                task = progress.add_task("Processing county chunks (distributed)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (distributed)...", total=len(gdf))
                 
                 futures = []
+                future_to_size = {}
                 for chunk in county_chunks:
                     future = self.client.submit(
-                        self._process_county_chunk,
+                        self._process_county_chunk_with_progress,
                         pr_data,
                         chunk,
                         scenario,
                         threshold_mm
                     )
                     futures.append(future)
+                    future_to_size[future] = len(chunk)
                 
                 for future in as_completed(futures):
                     chunk_results = future.result()
                     results.extend(chunk_results)
-                    progress.advance(task)
+                    # Advance by the number of counties in this chunk
+                    chunk_size = future_to_size[future]
+                    progress.advance(task, advance=chunk_size)
             
             else:
-                # Use multiprocessing
-                task = progress.add_task("Processing county chunks (multiprocessing)...", total=len(county_chunks))
+                # Use multiprocessing with real-time progress tracking
+                task = progress.add_task("Processing counties (multiprocessing)...", total=len(gdf))
                 
                 with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    futures = [
-                        executor.submit(
-                            self._process_county_chunk,
+                    futures = []
+                    for chunk in county_chunks:
+                        future = executor.submit(
+                            self._process_county_chunk_with_progress,
                             pr_data,
                             chunk,
                             scenario,
                             threshold_mm
                         )
-                        for chunk in county_chunks
-                    ]
+                        futures.append(future)
                     
-                    for future in as_completed(futures):
-                        chunk_results = future.result()
-                        results.extend(chunk_results)
-                        progress.advance(task)
+                    # Monitor progress in real-time
+                    completed_futures = 0
+                    while completed_futures < len(futures):
+                        # Check for progress updates
+                        if _progress_tracker:
+                            updates = _progress_tracker.get_progress()
+                            if updates > 0:
+                                progress.advance(task, advance=updates)
+                        
+                        # Check for completed futures
+                        for future in list(futures):
+                            if future.done():
+                                try:
+                                    chunk_results = future.result()
+                                    results.extend(chunk_results)
+                                    futures.remove(future)
+                                    completed_futures += 1
+                                except Exception as e:
+                                    console.print(f"[red]Error in chunk processing: {e}[/red]")
+                                    futures.remove(future)
+                                    completed_futures += 1
+                        
+                        # Small delay to prevent busy waiting
+                        time.sleep(0.1)
         
         return pd.DataFrame(results)
     
+    def _process_vectorized_ultra_fast(
+        self,
+        pr_data: xr.DataArray,
+        gdf: gpd.GeoDataFrame,
+        scenario: str,
+        threshold_mm: float
+    ) -> pd.DataFrame:
+        """Ultra-fast vectorized processing using advanced numpy operations - processes all counties and years at once."""
+        
+        console.print("[yellow]🚀 Ultra-fast vectorized processing (all counties + years simultaneously)...[/yellow]")
+        
+        # Get coordinate arrays
+        if 'lat' in pr_data.coords:
+            lats = pr_data.lat.values
+            lons = pr_data.lon.values
+        elif 'y' in pr_data.coords:
+            lats = pr_data.y.values
+            lons = pr_data.x.values
+        else:
+            coord_names = list(pr_data.coords)
+            raise ValueError(f"Could not find lat/lon coordinates in {coord_names}")
+        
+        console.print(f"[cyan]Zarr shape: {pr_data.shape} (time, lat, lon)[/cyan]")
+        
+        # Create county raster mask once
+        console.print("[cyan]Creating county raster mask...[/cyan]")
+        from rasterio.features import rasterize
+        from rasterio.transform import from_bounds
+        
+        transform = from_bounds(
+            lons.min(), lats.min(), lons.max(), lats.max(),
+            len(lons), len(lats)
+        )
+        
+        gdf_with_ids = gdf.copy()
+        gdf_with_ids['raster_id'] = range(1, len(gdf) + 1)
+        
+        shapes = [(geom, raster_id) for geom, raster_id in 
+                 zip(gdf_with_ids.geometry, gdf_with_ids.raster_id)]
+        
+        county_raster = rasterize(
+            shapes,
+            out_shape=(len(lats), len(lons)),
+            transform=transform,
+            fill=0,
+            dtype='uint16'
+        )
+        
+        unique_county_ids = np.unique(county_raster[county_raster > 0])
+        console.print(f"[cyan]County raster: {len(unique_county_ids)} counties[/cyan]")
+        
+        # Load ALL data into memory at once (this is the key optimization)
+        console.print("[cyan]Loading all zarr data into memory...[/cyan]")
+        all_data = pr_data.values  # Shape: (time, lat, lon)
+        
+        # Get time information
+        time_values = pr_data.time.values
+        if hasattr(time_values[0], 'year'):
+            years = np.array([t.year for t in time_values])
+        else:
+            years = pd.to_datetime(time_values).year
+        
+        unique_years = np.unique(years)
+        console.print(f"[cyan]Processing {len(unique_county_ids)} counties × {len(unique_years)} years = {len(unique_county_ids) * len(unique_years)} records[/cyan]")
+        
+        # Ultra-fast vectorized computation
+        results = []
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Ultra-fast processing...", total=len(unique_years))
+            
+            for year in unique_years:
+                year_mask = years == year
+                year_data = all_data[year_mask]  # Shape: (days_in_year, lat, lon)
+                
+                # Vectorized processing for ALL counties at once
+                for county_id in unique_county_ids:
+                    county_mask = county_raster == county_id
+                    county_info = gdf_with_ids[gdf_with_ids.raster_id == county_id].iloc[0]
+                    
+                    if np.any(county_mask):
+                        # Ultra-fast vectorized calculation
+                        # Extract all county data for the year at once
+                        county_data = year_data[:, county_mask]  # Shape: (days, n_pixels)
+                        
+                        # Calculate daily means using vectorized operations
+                        daily_means = np.mean(county_data, axis=1)  # Shape: (days,)
+                        valid_days = daily_means[~np.isnan(daily_means)]
+                        
+                        if len(valid_days) > 0:
+                            results.append({
+                                'year': year,
+                                'scenario': scenario,
+                                'county_id': county_info['county_id'],
+                                'county_name': county_info['county_name'],
+                                'state': county_info['state'],
+                                'total_annual_precip_mm': float(np.sum(valid_days)),
+                                'days_above_25.4mm': int(np.sum(valid_days > threshold_mm)),
+                                'mean_daily_precip_mm': float(np.mean(valid_days)),
+                                'max_daily_precip_mm': float(np.max(valid_days)),
+                                'precip_std_mm': float(np.std(valid_days)),
+                                'dry_days': int(np.sum(valid_days < 0.1)),
+                            })
+                
+                progress.advance(task)
+        
+        return pd.DataFrame(results)
+
+    def _process_vectorized_no_clip(
+        self,
+        pr_data: xr.DataArray,
+        gdf: gpd.GeoDataFrame,
+        scenario: str,
+        threshold_mm: float
+    ) -> pd.DataFrame:
+        """Process counties directly on zarr data without clipping - much faster for regional zarr stores."""
+        
+        console.print("[yellow]Processing counties directly on zarr data (no clipping)...[/yellow]")
+        
+        # Get coordinate arrays - handle different coordinate names
+        if 'lat' in pr_data.coords:
+            lats = pr_data.lat.values
+            lons = pr_data.lon.values
+        elif 'y' in pr_data.coords:
+            lats = pr_data.y.values
+            lons = pr_data.x.values
+        else:
+            # Try to get from dims
+            coord_names = list(pr_data.coords)
+            console.print(f"[yellow]Available coordinates: {coord_names}[/yellow]")
+            raise ValueError(f"Could not find lat/lon coordinates in {coord_names}")
+        
+        console.print(f"[cyan]Zarr grid shape: {pr_data.shape[1:]} (lat×lon)[/cyan]")
+        console.print(f"[cyan]Creating county raster mask...[/cyan]")
+        
+        # Create county raster mask using rasterio
+        from rasterio.features import rasterize
+        from rasterio.transform import from_bounds
+        
+        # Create transform for the zarr grid
+        transform = from_bounds(
+            lons.min(), lats.min(), lons.max(), lats.max(),
+            len(lons), len(lats)
+        )
+        
+        # Add unique IDs to counties for rasterization
+        gdf_with_ids = gdf.copy()
+        gdf_with_ids['raster_id'] = range(1, len(gdf) + 1)
+        
+        # Create shapes for rasterization
+        shapes = [(geom, raster_id) for geom, raster_id in 
+                 zip(gdf_with_ids.geometry, gdf_with_ids.raster_id)]
+        
+        # Rasterize counties to create mask
+        county_raster = rasterize(
+            shapes,
+            out_shape=(len(lats), len(lons)),
+            transform=transform,
+            fill=0,
+            dtype='uint16'
+        )
+        
+        console.print(f"[cyan]County raster created with {np.unique(county_raster[county_raster > 0]).size} counties[/cyan]")
+        
+        # Get time information
+        time_values = pr_data.time.values
+        if hasattr(time_values[0], 'year'):
+            years = np.array([t.year for t in time_values])
+        else:
+            years = pd.to_datetime(time_values).year
+        
+        unique_years = np.unique(years)
+        results = []
+        
+        console.print(f"[cyan]Processing {len(gdf)} counties over {len(unique_years)} years[/cyan]")
+        
+        # Process by year for memory efficiency
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Processing years...", total=len(unique_years))
+            
+            for year in unique_years:
+                year_mask = years == year
+                year_data = pr_data.isel(time=year_mask).values  # Shape: (days, lat, lon)
+                
+                # Get unique county IDs in the raster
+                unique_county_ids = np.unique(county_raster[county_raster > 0])
+                
+                # Process each county for this year
+                for county_id in unique_county_ids:
+                    try:
+                        # Get county info
+                        county_info = gdf_with_ids[gdf_with_ids.raster_id == county_id].iloc[0]
+                        
+                        # Create mask for this county
+                        county_mask = county_raster == county_id
+                        
+                        if np.any(county_mask):
+                            # Calculate daily means for this county
+                            daily_means = []
+                            for day_idx in range(year_data.shape[0]):
+                                day_data = year_data[day_idx]
+                                county_values = day_data[county_mask]
+                                if len(county_values) > 0:
+                                    daily_means.append(np.mean(county_values))
+                            
+                            daily_means = np.array(daily_means)
+                            valid_days = daily_means[~np.isnan(daily_means)]
+                            
+                            if len(valid_days) > 0:
+                                results.append({
+                                    'year': year,
+                                    'scenario': scenario,
+                                    'county_id': county_info['county_id'],
+                                    'county_name': county_info['county_name'],
+                                    'state': county_info['state'],
+                                    'total_annual_precip_mm': float(np.sum(valid_days)),
+                                    'days_above_25.4mm': int(np.sum(valid_days > threshold_mm)),
+                                    'mean_daily_precip_mm': float(np.mean(valid_days)),
+                                    'max_daily_precip_mm': float(np.max(valid_days)),
+                                    'precip_std_mm': float(np.std(valid_days)),
+                                    'dry_days': int(np.sum(valid_days < 0.1)),
+                                })
+                    except Exception as e:
+                        console.print(f"[red]Error processing county {county_id}: {e}[/red]")
+                
+                progress.advance(task)
+        
+        return pd.DataFrame(results)
+
     def _process_vectorized(
         self,
         pr_data: xr.DataArray,
@@ -494,6 +809,11 @@ class ModernCountyProcessor:
         threshold_mm: float
     ) -> pd.DataFrame:
         """Process all counties using vectorized operations."""
+        
+        # For regional zarr stores, use ultra-fast processing
+        if len(gdf) > 100:
+            console.print("[yellow]🚀 Using ultra-fast processing for regional zarr store...[/yellow]")
+            return self._process_vectorized_ultra_fast(pr_data, gdf, scenario, threshold_mm)
         
         # Use rioxarray clipping instead of manual rasterization for better compatibility
         console.print("[yellow]Processing counties with rioxarray clipping...[/yellow]")
@@ -691,6 +1011,61 @@ class ModernCountyProcessor:
                             })
             except Exception as e:
                 console.print(f"[red]Error processing {county['county_name']}: {e}[/red]")
+        
+        return results
+    
+    @staticmethod
+    def _process_county_chunk_with_progress(
+        pr_data: xr.DataArray,
+        county_chunk: gpd.GeoDataFrame,
+        scenario: str,
+        threshold_mm: float
+    ) -> List[Dict]:
+        """Process a chunk of counties with progress tracking (for parallel execution)."""
+        results = []
+        
+        for idx, county in county_chunk.iterrows():
+            try:
+                # Clip data to county
+                clipped = pr_data.rio.clip([county.geometry], all_touched=True)
+                
+                if clipped.size > 0:
+                    # Get time info
+                    time_values = clipped.time.values
+                    if hasattr(time_values[0], 'year'):
+                        years = np.array([t.year for t in time_values])
+                    else:
+                        years = pd.to_datetime(time_values).year
+                    
+                    for year in np.unique(years):
+                        year_mask = years == year
+                        year_data = clipped.isel(time=year_mask)
+                        
+                        # Calculate daily means
+                        daily_means = year_data.mean(dim=['y', 'x']).values
+                        
+                        if len(daily_means) > 0:
+                            results.append({
+                                'year': year,
+                                'scenario': scenario,
+                                'county_id': county['county_id'],
+                                'county_name': county['county_name'],
+                                'state': county['state'],
+                                'total_annual_precip_mm': float(np.sum(daily_means)),
+                                'days_above_25.4mm': int(np.sum(daily_means > threshold_mm)),
+                                'mean_daily_precip_mm': float(np.mean(daily_means)),
+                                'max_daily_precip_mm': float(np.max(daily_means)),
+                                'precip_std_mm': float(np.std(daily_means)),
+                                'dry_days': int(np.sum(daily_means < 0.1)),
+                            })
+                
+                # Update progress for this county
+                update_progress(1)
+                
+            except Exception as e:
+                console.print(f"[red]Error processing {county['county_name']}: {e}[/red]")
+                # Still update progress even if there's an error
+                update_progress(1)
         
         return results
     
@@ -923,9 +1298,10 @@ class ModernCountyProcessor:
             
             if self.client and DISTRIBUTED_AVAILABLE:
                 # Use Dask distributed processing
-                task = progress.add_task("Processing county chunks (distributed)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (distributed)...", total=len(gdf))
                 
                 futures = []
+                future_to_size = {}
                 for chunk in county_chunks:
                     future = self.client.submit(
                         self._process_county_chunk_tasmax,
@@ -935,32 +1311,42 @@ class ModernCountyProcessor:
                         threshold_temp_c
                     )
                     futures.append(future)
+                    future_to_size[future] = len(chunk)
                 
                 for future in as_completed(futures):
                     chunk_results = future.result()
                     results.extend(chunk_results)
-                    progress.advance(task)
+                    # Advance by the number of counties in this chunk
+                    chunk_size = future_to_size[future]
+                    progress.advance(task, advance=chunk_size)
             
             else:
                 # Use multiprocessing
-                task = progress.add_task("Processing county chunks (multiprocessing)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (multiprocessing)...", total=len(gdf))
                 
                 with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    futures = [
-                        executor.submit(
+                    futures = []
+                    chunk_sizes = []
+                    for chunk in county_chunks:
+                        future = executor.submit(
                             self._process_county_chunk_tasmax,
                             tasmax_data,
                             chunk,
                             scenario,
                             threshold_temp_c
                         )
-                        for chunk in county_chunks
-                    ]
+                        futures.append(future)
+                        chunk_sizes.append(len(chunk))
+                    
+                    # Map futures to their chunk sizes for proper tracking
+                    future_to_size = dict(zip(futures, chunk_sizes))
                     
                     for future in as_completed(futures):
                         chunk_results = future.result()
                         results.extend(chunk_results)
-                        progress.advance(task)
+                        # Advance by the number of counties in this chunk
+                        chunk_size = future_to_size[future]
+                        progress.advance(task, advance=chunk_size)
         
         return pd.DataFrame(results)
 
@@ -991,9 +1377,10 @@ class ModernCountyProcessor:
             
             if self.client and DISTRIBUTED_AVAILABLE:
                 # Use Dask distributed processing
-                task = progress.add_task("Processing county chunks (distributed)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (distributed)...", total=len(gdf))
                 
                 futures = []
+                future_to_size = {}
                 for chunk in county_chunks:
                     future = self.client.submit(
                         self._process_county_chunk_tasmin,
@@ -1002,31 +1389,41 @@ class ModernCountyProcessor:
                         scenario
                     )
                     futures.append(future)
+                    future_to_size[future] = len(chunk)
                 
                 for future in as_completed(futures):
                     chunk_results = future.result()
                     results.extend(chunk_results)
-                    progress.advance(task)
+                    # Advance by the number of counties in this chunk
+                    chunk_size = future_to_size[future]
+                    progress.advance(task, advance=chunk_size)
             
             else:
                 # Use multiprocessing
-                task = progress.add_task("Processing county chunks (multiprocessing)...", total=len(county_chunks))
+                task = progress.add_task("Processing counties (multiprocessing)...", total=len(gdf))
                 
                 with ProcessPoolExecutor(max_workers=self.n_workers) as executor:
-                    futures = [
-                        executor.submit(
+                    futures = []
+                    chunk_sizes = []
+                    for chunk in county_chunks:
+                        future = executor.submit(
                             self._process_county_chunk_tasmin,
                             tasmin_data,
                             chunk,
                             scenario
                         )
-                        for chunk in county_chunks
-                    ]
+                        futures.append(future)
+                        chunk_sizes.append(len(chunk))
+                    
+                    # Map futures to their chunk sizes for proper tracking
+                    future_to_size = dict(zip(futures, chunk_sizes))
                     
                     for future in as_completed(futures):
                         chunk_results = future.result()
                         results.extend(chunk_results)
-                        progress.advance(task)
+                        # Advance by the number of counties in this chunk
+                        chunk_size = future_to_size[future]
+                        progress.advance(task, advance=chunk_size)
         
         return pd.DataFrame(results)
 
