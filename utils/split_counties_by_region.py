@@ -53,15 +53,45 @@ class ModernCountySplitter:
         return counties
     
     def get_county_centroids(self, counties: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-        """Calculate county centroids for region assignment."""
+        """Calculate county centroids for region assignment with International Date Line correction."""
         logger.info("Calculating county centroids...")
         
-        # Calculate centroids
-        counties_with_centroids = counties.copy()
-        centroids = counties.geometry.centroid
+        def get_corrected_centroid(geometry):
+            """Get centroid with International Date Line correction."""
+            bounds = geometry.bounds
+            min_lon, min_lat, max_lon, max_lat = bounds
+            
+            # Check if geometry crosses International Date Line
+            if max_lon - min_lon > 180:
+                # Geometry crosses date line, need special handling
+                # Use bounds center with correction for date line crossing
+                if min_lon < 0 and max_lon > 0:
+                    # Crosses from negative to positive (typical date line crossing)
+                    corrected_lon = min_lon + (360 + max_lon - min_lon) / 2
+                    if corrected_lon > 180:
+                        corrected_lon -= 360
+                else:
+                    corrected_lon = (min_lon + max_lon) / 2
+            else:
+                # Normal geometry, use regular centroid
+                centroid = geometry.centroid
+                corrected_lon = centroid.x
+            
+            # Latitude is usually fine
+            corrected_lat = (min_lat + max_lat) / 2
+            
+            return corrected_lon, corrected_lat
         
-        counties_with_centroids['centroid_lon'] = centroids.x
-        counties_with_centroids['centroid_lat'] = centroids.y
+        # Calculate corrected centroids
+        counties_with_centroids = counties.copy()
+        corrected_centroids = []
+        
+        for _, row in counties_with_centroids.iterrows():
+            lon, lat = get_corrected_centroid(row.geometry)
+            corrected_centroids.append((lon, lat))
+        
+        counties_with_centroids['centroid_lon'] = [c[0] for c in corrected_centroids]
+        counties_with_centroids['centroid_lat'] = [c[1] for c in corrected_centroids]
         
         return counties_with_centroids
     
@@ -74,9 +104,27 @@ class ModernCountySplitter:
             if region_name in self.config.regions:
                 region = self.config.regions[region_name]
                 
-                if (region.lat_min <= lat <= region.lat_max and 
-                    region.lon_min <= lon <= region.lon_max):
-                    return region_name
+                # Special handling for Alaska to include Aleutians West
+                if region_name == 'alaska':
+                    # Expand latitude range to include Aleutians West (down to 51°N)
+                    alaska_lat_min = 51.0  # Instead of 54.0
+                    alaska_lat_max = region.lat_max
+                    
+                    # Handle International Date Line crossing for Aleutians West
+                    # Alaska spans from -180° to -129°, but Aleutians West crosses to +179°
+                    lat_in_range = alaska_lat_min <= lat <= alaska_lat_max
+                    
+                    # Check longitude: either in normal Alaska range OR in Aleutians West range
+                    lon_in_alaska_main = region.lon_min <= lon <= region.lon_max  # -180° to -129°
+                    lon_in_aleutians_west = 170.0 <= lon <= 180.0  # Eastern side of date line
+                    
+                    if lat_in_range and (lon_in_alaska_main or lon_in_aleutians_west):
+                        return region_name
+                else:
+                    # Standard region checking for all other regions
+                    if (region.lat_min <= lat <= region.lat_max and 
+                        region.lon_min <= lon <= region.lon_max):
+                        return region_name
         
         # If no region matches, assign to 'other'
         return 'other'
