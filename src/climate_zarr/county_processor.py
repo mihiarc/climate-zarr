@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+"""Modern county processor that replaces the monolithic implementation."""
+
+from pathlib import Path
+from typing import Dict, Optional
+import pandas as pd
+import geopandas as gpd
+import xarray as xr
+from rich.console import Console
+
+from .processors import (
+    PrecipitationProcessor,
+    TemperatureProcessor,
+    TasMaxProcessor,
+    TasMinProcessor
+)
+
+console = Console()
+
+
+class ModernCountyProcessor:
+    """Modern, modular county processor for climate data analysis.
+    
+    This class replaces the monolithic implementation with a clean,
+    modular architecture that delegates to specialized processors.
+    """
+    
+    def __init__(
+        self,
+        n_workers: int = 4
+    ):
+        """Initialize the modern county processor.
+        
+        Args:
+            n_workers: Number of worker processes
+        """
+        self.n_workers = n_workers
+        
+        # Initialize variable-specific processors
+        self._processors = {
+            'pr': PrecipitationProcessor(n_workers),
+            'tas': TemperatureProcessor(n_workers),
+            'tasmax': TasMaxProcessor(n_workers),
+            'tasmin': TasMinProcessor(n_workers),
+        }
+    
+    def prepare_shapefile(
+        self, 
+        shapefile_path: Path, 
+        target_crs: str = 'EPSG:4326'
+    ) -> gpd.GeoDataFrame:
+        """Load and prepare shapefile for processing.
+        
+        Args:
+            shapefile_path: Path to the shapefile
+            target_crs: Target coordinate reference system
+            
+        Returns:
+            Prepared GeoDataFrame with standardized columns
+        """
+        # Use the first processor's method (they all have the same implementation)
+        return self._processors['pr'].prepare_shapefile(shapefile_path, target_crs)
+    
+    def process_zarr_data(
+        self,
+        zarr_path: Path,
+        gdf: gpd.GeoDataFrame,
+        scenario: str = 'historical',
+        variable: str = 'pr',
+        threshold: float = 25.4,
+        chunk_by_county: bool = True
+    ) -> pd.DataFrame:
+        """Process Zarr data using the appropriate variable processor.
+        
+        Args:
+            zarr_path: Path to Zarr dataset
+            gdf: County geometries
+            scenario: Scenario name
+            variable: Climate variable to process
+            threshold: Threshold value for the variable
+            chunk_by_county: Whether to use chunked processing
+            
+        Returns:
+            DataFrame with processed results
+        """
+        console.print(f"[blue]Opening Zarr dataset:[/blue] {zarr_path}")
+        
+        # Validate variable
+        if variable not in self._processors:
+            raise ValueError(f"Unsupported variable: {variable}. Supported: {list(self._processors.keys())}")
+        
+        # Get the appropriate processor
+        processor = self._processors[variable]
+        
+        # Open the dataset
+        ds = xr.open_zarr(zarr_path, chunks={'time': 365})
+        
+        # Check if variable exists in dataset
+        if variable not in ds.data_vars:
+            raise ValueError(f"Variable '{variable}' not found in dataset. Available: {list(ds.data_vars)}")
+        
+        # Get the data array
+        data = ds[variable]
+        
+        # Process based on variable type
+        if variable == 'pr':
+            return processor.process_variable_data(
+                data=data,
+                gdf=gdf,
+                scenario=scenario,
+                threshold_mm=threshold,
+                chunk_by_county=chunk_by_county
+            )
+        elif variable == 'tas':
+            return processor.process_variable_data(
+                data=data,
+                gdf=gdf,
+                scenario=scenario,
+                chunk_by_county=chunk_by_county
+            )
+        elif variable == 'tasmax':
+            return processor.process_variable_data(
+                data=data,
+                gdf=gdf,
+                scenario=scenario,
+                threshold_temp_c=threshold,
+                chunk_by_county=chunk_by_county
+            )
+        elif variable == 'tasmin':
+            return processor.process_variable_data(
+                data=data,
+                gdf=gdf,
+                scenario=scenario,
+                chunk_by_county=chunk_by_county
+            )
+    
+    def get_processor(self, variable: str):
+        """Get the processor for a specific variable.
+        
+        Args:
+            variable: Climate variable name
+            
+        Returns:
+            Processor instance for the variable
+        """
+        if variable not in self._processors:
+            raise ValueError(f"Unsupported variable: {variable}")
+        return self._processors[variable]
+    
+    def close(self):
+        """Clean up resources for all processors."""
+        for processor in self._processors.values():
+            processor.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit with cleanup."""
+        self.close() 

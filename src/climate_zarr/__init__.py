@@ -20,7 +20,7 @@ from climate_zarr.climate_config import (
     get_config,
 )
 from climate_zarr.stack_nc_to_zarr import stack_netcdf_to_zarr
-from climate_zarr.calculate_county_stats import ModernCountyProcessor
+from climate_zarr.county_processor import ModernCountyProcessor
 
 __all__ = [
     # Version info

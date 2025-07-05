@@ -1,205 +1,233 @@
-"""
-Pytest configuration and fixtures for Climate Zarr integration tests.
-"""
+#!/usr/bin/env python
+"""Pytest configuration and shared fixtures for climate-zarr tests."""
 
 import pytest
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+import xarray as xr
+import rioxarray  # Required for .rio accessor
+from shapely.geometry import Polygon
 import tempfile
 import shutil
 from pathlib import Path
-import numpy as np
-import xarray as xr
-import pandas as pd
-import geopandas as gpd
-from shapely.geometry import box
-from datetime import datetime, timedelta
 
 
 @pytest.fixture(scope="session")
-def test_data_dir():
-    """Create a temporary directory for test data."""
-    temp_dir = tempfile.mkdtemp(prefix="climate_zarr_test_")
-    yield Path(temp_dir)
-    # Cleanup after all tests
-    shutil.rmtree(temp_dir)
+def temp_test_dir():
+    """Create a temporary directory for test session."""
+    temp_dir = tempfile.mkdtemp(prefix="climate_zarr_tests_")
+    yield temp_dir
+    shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-@pytest.fixture(scope="session")
-def sample_netcdf_files(test_data_dir):
-    """Create sample NetCDF files with climate data."""
-    nc_dir = test_data_dir / "netcdf"
-    nc_dir.mkdir(exist_ok=True)
-    
-    # Create 3 years of monthly data
-    files = []
-    base_date = datetime(2020, 1, 1)
-    
-    for year in range(2020, 2023):
-        # Create time coordinates for one year
-        times = pd.date_range(f"{year}-01-01", f"{year}-12-31", freq="D")
-        
-        # Create spatial coordinates (small grid for testing)
-        lats = np.linspace(25, 45, 20)  # 20 latitude points
-        lons = np.linspace(-120, -70, 25)  # 25 longitude points
-        
-        # Create sample data
-        # Temperature (tas) - varies by latitude and time
-        tas_data = np.random.normal(
-            loc=20 - (lats[:, np.newaxis, np.newaxis] - 35) * 0.5,  # Temperature decreases with latitude
-            scale=5,
-            size=(len(lats), len(lons), len(times))
-        )
-        
-        # Add seasonal variation
-        day_of_year = times.dayofyear.values
-        seasonal_factor = 10 * np.sin(2 * np.pi * day_of_year / 365.25)
-        tas_data += seasonal_factor[np.newaxis, np.newaxis, :]
-        
-        # Precipitation (pr) - random with some spatial correlation
-        pr_data = np.maximum(
-            np.random.gamma(2, 2, size=(len(lats), len(lons), len(times))),
-            0
-        )
-        
-        # Create dataset
-        ds = xr.Dataset(
-            {
-                "tas": (["lat", "lon", "time"], tas_data, {"units": "degC", "long_name": "Temperature"}),
-                "pr": (["lat", "lon", "time"], pr_data, {"units": "mm/day", "long_name": "Precipitation"}),
-            },
-            coords={
-                "lat": ("lat", lats, {"units": "degrees_north", "long_name": "Latitude"}),
-                "lon": ("lon", lons, {"units": "degrees_east", "long_name": "Longitude"}),
-                "time": ("time", times),
-            },
-            attrs={
-                "title": f"Test Climate Data {year}",
-                "institution": "Climate Zarr Test Suite",
-                "source": "Synthetic test data",
-                "history": f"Created for testing on {datetime.now()}",
-                "Conventions": "CF-1.8",
-            }
-        )
-        
-        # Save to NetCDF
-        filename = nc_dir / f"climate_data_{year}.nc"
-        ds.to_netcdf(filename, encoding={
-            "tas": {"dtype": "float32", "zlib": True, "complevel": 4},
-            "pr": {"dtype": "float32", "zlib": True, "complevel": 4},
-        })
-        files.append(filename)
-    
-    return files
-
-
-@pytest.fixture(scope="session")
-def sample_shapefile(test_data_dir):
-    """Create a sample shapefile with mock county boundaries."""
-    shp_dir = test_data_dir / "shapefiles"
-    shp_dir.mkdir(exist_ok=True)
-    
-    # Create mock counties as rectangles
+@pytest.fixture
+def sample_counties_gdf():
+    """Create a sample GeoDataFrame with test counties."""
     counties = []
-    county_data = [
-        {"NAME": "Test County 1", "STATEFP": "06", "COUNTYFP": "001", "GEOID": "06001"},
-        {"NAME": "Test County 2", "STATEFP": "06", "COUNTYFP": "002", "GEOID": "06002"},
-        {"NAME": "Test County 3", "STATEFP": "06", "COUNTYFP": "003", "GEOID": "06003"},
-    ]
+    for i in range(5):
+        # Create rectangular counties
+        minx, miny = -100 + i*0.2, 40
+        maxx, maxy = minx + 0.2, 41
+        
+        poly = Polygon([
+            (minx, miny), (maxx, miny), 
+            (maxx, maxy), (minx, maxy), (minx, miny)
+        ])
+        
+        counties.append({
+            'GEOID': f'{i:05d}',
+            'NAME': f'Test County {i}',
+            'STUSPS': 'TX',
+            'geometry': poly
+        })
     
-    # Create geometries (non-overlapping boxes)
-    for i, data in enumerate(county_data):
-        # Create a 2x2 degree box
-        minx = -120 + i * 3
-        miny = 35 + i * 2
-        geometry = box(minx, miny, minx + 2, miny + 2)
-        counties.append({**data, "geometry": geometry})
-    
-    # Create GeoDataFrame
-    gdf = gpd.GeoDataFrame(counties, crs="EPSG:4326")
-    
-    # Save to shapefile
-    shapefile_path = shp_dir / "test_counties.shp"
-    gdf.to_file(shapefile_path)
-    
+    return gpd.GeoDataFrame(counties, crs='EPSG:4326')
+
+
+@pytest.fixture
+def sample_shapefile(sample_counties_gdf, temp_test_dir):
+    """Create a sample shapefile for testing."""
+    shapefile_path = Path(temp_test_dir) / "test_counties.shp"
+    sample_counties_gdf.to_file(shapefile_path)
     return shapefile_path
 
 
 @pytest.fixture
-def zarr_output_dir(test_data_dir):
-    """Create a directory for Zarr output."""
-    zarr_dir = test_data_dir / "zarr_output"
-    zarr_dir.mkdir(exist_ok=True)
-    yield zarr_dir
-    # Cleanup is handled by test_data_dir fixture
-
-
-@pytest.fixture
-def stats_output_dir(test_data_dir):
-    """Create a directory for statistics output."""
-    stats_dir = test_data_dir / "stats_output"
-    stats_dir.mkdir(exist_ok=True)
-    yield stats_dir
-    # Cleanup is handled by test_data_dir fixture
-
-
-@pytest.fixture
-def cli_runner():
-    """Create a CLI runner for testing Typer apps."""
-    from typer.testing import CliRunner
-    return CliRunner()
-
-
-@pytest.fixture
-def mock_climate_config(test_data_dir):
-    """Create a mock climate configuration."""
-    from climate_zarr.climate_config import ClimateConfig, CompressionConfig, ChunkingConfig
+def sample_precipitation_xarray():
+    """Create sample precipitation data as xarray DataArray."""
+    # Create 1 year of daily data
+    time = pd.date_range('2020-01-01', '2020-12-31', freq='D')
     
-    config = ClimateConfig(
-        data_dir=str(test_data_dir / "netcdf"),
-        output_dir=str(test_data_dir / "output"),
-        compression=CompressionConfig(algorithm="zstd", level=3),
-        chunking=ChunkingConfig(time=100, lat=10, lon=10),
+    # Create spatial grid
+    lons = np.arange(-100.1, -99.5, 0.05)  # 12 points
+    lats = np.arange(40.1, 40.9, 0.05)     # 16 points
+    
+    # Create realistic precipitation data (kg/m²/s)
+    np.random.seed(42)
+    data = np.random.exponential(2e-6, size=(len(time), len(lats), len(lons)))
+    
+    # Add seasonal patterns
+    for t in range(len(time)):
+        day_of_year = time[t].dayofyear
+        seasonal_factor = 1 + 0.3 * np.sin(2 * np.pi * day_of_year / 365)
+        data[t, :, :] *= seasonal_factor
+    
+    # Create xarray DataArray
+    da = xr.DataArray(
+        data,
+        coords={'time': time, 'lat': lats, 'lon': lons},
+        dims=['time', 'lat', 'lon'],
+        name='pr'
     )
-    return config
-
-
-@pytest.fixture(scope="session")
-def real_data_available():
-    """Check if real data files are available."""
-    data_dir = Path("data")
-    regional_dir = Path("regional_counties")
     
-    has_nc_files = data_dir.exists() and len(list(data_dir.glob("*.nc"))) > 0
-    has_shapefiles = regional_dir.exists() and len(list(regional_dir.glob("*.shp"))) > 0
+    # Add spatial reference and attributes
+    da = da.rio.write_crs('EPSG:4326')
+    da.attrs['units'] = 'kg/m2/s'
+    da.attrs['long_name'] = 'precipitation'
     
-    return has_nc_files and has_shapefiles
+    return da
 
 
-@pytest.fixture(scope="session")
-def sample_real_nc_file():
-    """Get one real NetCDF file if available."""
-    data_dir = Path("data")
-    if not data_dir.exists():
-        return None
+@pytest.fixture
+def sample_temperature_xarray():
+    """Create sample temperature data as xarray DataArray."""
+    # Create 1 year of daily data
+    time = pd.date_range('2020-01-01', '2020-12-31', freq='D')
     
-    nc_files = sorted(data_dir.glob("pr_day_NorESM2-LM_historical_*.nc"))
-    if nc_files:
-        return nc_files[0]
-    return None
+    # Create spatial grid
+    lons = np.arange(-100.1, -99.5, 0.05)
+    lats = np.arange(40.1, 40.9, 0.05)
+    
+    # Create realistic temperature data (Kelvin)
+    np.random.seed(123)
+    base_temp = 283.15  # ~10°C
+    
+    data = np.zeros((len(time), len(lats), len(lons)))
+    
+    for t in range(len(time)):
+        # Seasonal temperature variation
+        day_of_year = time[t].dayofyear
+        seasonal_temp = base_temp + 15 * np.sin(2 * np.pi * (day_of_year - 80) / 365)
+        
+        # Add daily random variation
+        daily_variation = np.random.normal(0, 3, size=(len(lats), len(lons)))
+        
+        # Add spatial gradient
+        for i, lat in enumerate(lats):
+            spatial_temp = seasonal_temp - 0.5 * (lat - 40.5)
+            data[t, i, :] = spatial_temp + daily_variation[i, :]
+    
+    # Create xarray DataArray
+    da = xr.DataArray(
+        data,
+        coords={'time': time, 'lat': lats, 'lon': lons},
+        dims=['time', 'lat', 'lon'],
+        name='tas'
+    )
+    
+    # Add spatial reference and attributes
+    da = da.rio.write_crs('EPSG:4326')
+    da.attrs['units'] = 'K'
+    da.attrs['long_name'] = 'air_temperature'
+    
+    return da
 
 
-@pytest.fixture(scope="session")
-def real_shapefile_path():
-    """Get path to a real shapefile if available."""
-    # Try CONUS first as it's most commonly used
-    conus_shp = Path("regional_counties/conus_counties.shp")
-    if conus_shp.exists():
-        return conus_shp
+@pytest.fixture
+def sample_precipitation_zarr(sample_precipitation_xarray, temp_test_dir):
+    """Create sample precipitation zarr dataset."""
+    zarr_path = Path(temp_test_dir) / "test_precipitation.zarr"
+    ds = sample_precipitation_xarray.to_dataset()
+    ds.to_zarr(zarr_path)
+    return zarr_path
+
+
+@pytest.fixture
+def sample_temperature_zarr(sample_temperature_xarray, temp_test_dir):
+    """Create sample temperature zarr dataset."""
+    zarr_path = Path(temp_test_dir) / "test_temperature.zarr"
+    ds = sample_temperature_xarray.to_dataset()
+    ds.to_zarr(zarr_path)
+    return zarr_path
+
+
+@pytest.fixture
+def sample_county_info():
+    """Create sample county information dictionary."""
+    return {
+        'county_id': '12345',
+        'county_name': 'Test County',
+        'state': 'TX'
+    }
+
+
+@pytest.fixture
+def sample_daily_precipitation():
+    """Create sample daily precipitation values."""
+    np.random.seed(42)
+    return np.random.exponential(2.0, size=365)  # mm/day
+
+
+@pytest.fixture
+def sample_daily_temperature():
+    """Create sample daily temperature values."""
+    np.random.seed(123)
+    # Create seasonal temperature pattern
+    days = np.arange(365)
+    base_temp = 15  # °C
+    seasonal_temp = base_temp + 10 * np.sin(2 * np.pi * days / 365)
+    daily_variation = np.random.normal(0, 3, size=365)
+    return seasonal_temp + daily_variation
+
+
+# Pytest configuration
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration test"
+    )
+    config.addinivalue_line(
+        "markers", "slow: mark test as slow running"
+    )
+    config.addinivalue_line(
+        "markers", "unit: mark test as unit test"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to add markers automatically."""
+    for item in items:
+        # Add integration marker to integration tests
+        if "integration" in item.nodeid:
+            item.add_marker(pytest.mark.integration)
+        
+        # Add slow marker to end-to-end tests
+        if "end_to_end" in item.nodeid:
+            item.add_marker(pytest.mark.slow)
+        
+        # Add unit marker to unit tests
+        if any(name in item.nodeid for name in ["test_processors", "test_strategies", "test_utils"]):
+            item.add_marker(pytest.mark.unit)
+
+
+# Skip slow tests by default
+def pytest_addoption(parser):
+    """Add command line options for test selection."""
+    parser.addoption(
+        "--runslow", action="store_true", default=False, 
+        help="run slow tests"
+    )
+    parser.addoption(
+        "--runintegration", action="store_true", default=False,
+        help="run integration tests"
+    )
+
+
+def pytest_runtest_setup(item):
+    """Setup function to skip tests based on markers."""
+    if "slow" in item.keywords and not item.config.getoption("--runslow"):
+        pytest.skip("need --runslow option to run")
     
-    # Try any shapefile
-    regional_dir = Path("regional_counties")
-    if regional_dir.exists():
-        shapefiles = list(regional_dir.glob("*.shp"))
-        if shapefiles:
-            return shapefiles[0]
-    
-    return None
+    if "integration" in item.keywords and not item.config.getoption("--runintegration"):
+        pytest.skip("need --runintegration option to run")
