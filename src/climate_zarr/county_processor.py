@@ -14,6 +14,7 @@ from .processors import (
     TasMaxProcessor,
     TasMinProcessor
 )
+from .utils.output_utils import get_output_manager
 
 console = Console()
 
@@ -146,6 +147,67 @@ class ModernCountyProcessor:
         if variable not in self._processors:
             raise ValueError(f"Unsupported variable: {variable}")
         return self._processors[variable]
+    
+    def save_results(
+        self,
+        results_df: pd.DataFrame,
+        variable: str,
+        region: str,
+        scenario: str = "historical",
+        threshold: Optional[float] = None,
+        output_path: Optional[Path] = None,
+        metadata: Optional[Dict] = None
+    ) -> Path:
+        """Save results using standardized output management.
+        
+        Args:
+            results_df: Results DataFrame to save
+            variable: Climate variable processed
+            region: Region name
+            scenario: Scenario name
+            threshold: Threshold value used
+            output_path: Custom output path (optional)
+            metadata: Additional metadata (optional)
+            
+        Returns:
+            Path where results were saved
+        """
+        output_manager = get_output_manager()
+        
+        if output_path is None:
+            output_path = output_manager.get_output_path(
+                variable=variable,
+                region=region,
+                scenario=scenario,
+                threshold=threshold
+            )
+        
+        # Prepare metadata
+        save_metadata = {
+            "processing_info": {
+                "variable": variable,
+                "region": region,
+                "scenario": scenario,
+                "threshold": threshold,
+                "n_workers": self.n_workers
+            },
+            "data_summary": {
+                "counties_processed": len(results_df['county_id'].unique()) if 'county_id' in results_df.columns else len(results_df),
+                "years_processed": len(results_df['year'].unique()) if 'year' in results_df.columns else "unknown",
+                "total_records": len(results_df)
+            }
+        }
+        
+        if metadata:
+            save_metadata.update(metadata)
+        
+        # Save with metadata
+        return output_manager.save_with_metadata(
+            data=results_df,
+            output_path=output_path,
+            metadata=save_metadata,
+            save_method="csv"
+        )
     
     def close(self):
         """Clean up resources for all processors."""

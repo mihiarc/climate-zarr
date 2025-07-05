@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from climate_zarr.county_processor import ModernCountyProcessor
+from climate_zarr.utils.output_utils import get_output_manager
 
 console = Console()
 
@@ -29,8 +30,8 @@ def main():
     parser.add_argument(
         "-o", "--output",
         type=Path,
-        default="county_stats.csv",
-        help="Output CSV file (default: county_stats.csv)"
+        default=None,
+        help="Output CSV file (default: auto-generated based on parameters)"
     )
     parser.add_argument(
         "-s", "--scenario",
@@ -75,6 +76,26 @@ def main():
         console.print(f"[red]Shapefile does not exist: {args.shapefile_path}[/red]")
         return
     
+    # Set up output manager and determine output path
+    output_manager = get_output_manager()
+    
+    if args.output is None:
+        # Auto-generate output path based on parameters
+        # Try to infer region from shapefile name
+        region = "unknown"
+        shapefile_name = args.shapefile_path.stem.lower()
+        for region_name in ["conus", "alaska", "hawaii", "puerto_rico", "guam"]:
+            if region_name in shapefile_name:
+                region = region_name
+                break
+        
+        args.output = output_manager.get_output_path(
+            variable=args.variable,
+            region=region,
+            scenario=args.scenario,
+            threshold=args.threshold
+        )
+    
     # Create processor using context manager for automatic cleanup
     with ModernCountyProcessor(
         n_workers=args.workers
@@ -96,8 +117,30 @@ def main():
                 chunk_by_county=not args.no_chunk
             )
             
-            # Save results
-            results_df.to_csv(args.output, index=False)
+            # Save results with metadata
+            metadata = {
+                "processing_info": {
+                    "zarr_path": str(args.zarr_path),
+                    "shapefile_path": str(args.shapefile_path),
+                    "variable": args.variable,
+                    "scenario": args.scenario,
+                    "threshold": args.threshold,
+                    "workers": args.workers,
+                    "chunk_by_county": not args.no_chunk
+                },
+                "data_summary": {
+                    "counties_processed": len(results_df['county_id'].unique()),
+                    "years_processed": len(results_df['year'].unique()),
+                    "total_records": len(results_df)
+                }
+            }
+            
+            output_manager.save_with_metadata(
+                data=results_df,
+                output_path=args.output,
+                metadata=metadata,
+                save_method="csv"
+            )
             
             # Show summary
             table = Table(title="📊 Processing Summary")

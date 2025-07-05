@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 import os
+from datetime import datetime
 
 
 class CompressionConfig(BaseModel):
@@ -72,12 +73,131 @@ class ProcessingConfig(BaseModel):
     progress_bar: bool = Field(default=True, description="Show progress bars")
 
 
+class OutputConfig(BaseModel):
+    """Output file and directory configuration."""
+    
+    # Directory structure
+    base_output_dir: Path = Field(default=Path('./climate_outputs'), description="Base output directory")
+    create_subdirs: bool = Field(default=True, description="Create organized subdirectories")
+    include_timestamp: bool = Field(default=False, description="Include timestamp in directory names")
+    
+    # File naming patterns
+    naming_convention: str = Field(default="descriptive", description="File naming convention")
+    include_metadata: bool = Field(default=True, description="Include metadata in filenames")
+    date_format: str = Field(default="%Y%m%d", description="Date format for filenames")
+    
+    # File organization
+    organize_by_variable: bool = Field(default=True, description="Organize files by climate variable")
+    organize_by_region: bool = Field(default=True, description="Organize files by region")
+    organize_by_scenario: bool = Field(default=True, description="Organize files by scenario")
+    
+    @field_validator('naming_convention')
+    def validate_naming_convention(cls, v):
+        valid_conventions = ['simple', 'descriptive', 'detailed', 'iso']
+        if v not in valid_conventions:
+            raise ValueError(f"Naming convention must be one of {valid_conventions}")
+        return v
+    
+    def get_output_directory(self, 
+                           variable: Optional[str] = None,
+                           region: Optional[str] = None, 
+                           scenario: Optional[str] = None,
+                           output_type: str = "stats") -> Path:
+        """Generate organized output directory path."""
+        base_dir = self.base_output_dir
+        
+        if self.include_timestamp:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_dir = base_dir / f"run_{timestamp}"
+        
+        if not self.create_subdirs:
+            return base_dir
+        
+        # Build directory structure
+        parts = [output_type]  # stats, zarr, reports, etc.
+        
+        if self.organize_by_variable and variable:
+            parts.append(variable.lower())
+        
+        if self.organize_by_region and region:
+            parts.append(region.lower())
+            
+        if self.organize_by_scenario and scenario:
+            parts.append(scenario.lower())
+        
+        return base_dir / Path(*parts)
+    
+    def generate_filename(self,
+                         variable: str,
+                         region: str,
+                         scenario: str = "historical",
+                         output_type: str = "stats",
+                         file_extension: str = "csv",
+                         custom_suffix: Optional[str] = None,
+                         threshold: Optional[float] = None) -> str:
+        """Generate standardized filename based on naming convention."""
+        
+        if self.naming_convention == "simple":
+            # Simple: variable_region.ext
+            filename = f"{variable}_{region}.{file_extension}"
+            
+        elif self.naming_convention == "descriptive":
+            # Descriptive: region_scenario_variable_stats.ext
+            parts = [region, scenario, variable, output_type]
+            if threshold is not None:
+                if variable == "pr":
+                    parts.append(f"threshold{threshold}mm")
+                else:
+                    parts.append(f"threshold{threshold}c")
+            filename = "_".join(parts) + f".{file_extension}"
+            
+        elif self.naming_convention == "detailed":
+            # Detailed: region_scenario_variable_outputtype_YYYYMMDD.ext
+            date_str = datetime.now().strftime(self.date_format)
+            parts = [region, scenario, variable, output_type, date_str]
+            if threshold is not None:
+                thresh_str = f"t{threshold}".replace(".", "p")
+                parts.insert(-1, thresh_str)
+            filename = "_".join(parts) + f".{file_extension}"
+            
+        elif self.naming_convention == "iso":
+            # ISO-style: YYYY-MM-DD_region_variable_scenario.ext
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            parts = [date_str, region, variable, scenario]
+            if output_type != "stats":
+                parts.append(output_type)
+            filename = "_".join(parts) + f".{file_extension}"
+        
+        if custom_suffix:
+            name_part, ext_part = filename.rsplit('.', 1)
+            filename = f"{name_part}_{custom_suffix}.{ext_part}"
+        
+        return filename
+    
+    def get_full_output_path(self,
+                           variable: str,
+                           region: str,
+                           scenario: str = "historical",
+                           output_type: str = "stats",
+                           file_extension: str = "csv",
+                           custom_suffix: Optional[str] = None,
+                           threshold: Optional[float] = None) -> Path:
+        """Get complete output path with directory and filename."""
+        output_dir = self.get_output_directory(variable, region, scenario, output_type)
+        filename = self.generate_filename(
+            variable, region, scenario, output_type, 
+            file_extension, custom_suffix, threshold
+        )
+        return output_dir / filename
+
+
 class ClimateConfig(BaseModel):
     """Main climate processing configuration."""
     
     compression: CompressionConfig = Field(default_factory=CompressionConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
     
     # Predefined regions
     regions: Dict[str, RegionConfig] = Field(default_factory=lambda: {
@@ -163,6 +283,7 @@ class ClimateConfig(BaseModel):
     def setup_directories(self):
         """Create necessary directories."""
         self.default_output_dir.mkdir(parents=True, exist_ok=True)
+        self.output.base_output_dir.mkdir(parents=True, exist_ok=True)
         if self.temp_dir:
             self.temp_dir.mkdir(parents=True, exist_ok=True)
         if self.cache_dir:
@@ -190,6 +311,16 @@ class ClimateConfig(BaseModel):
         # Output directory
         if output_dir := os.getenv('CLIMATE_OUTPUT_DIR'):
             config_data['default_output_dir'] = output_dir
+        
+        # Output configuration
+        if base_output_dir := os.getenv('CLIMATE_BASE_OUTPUT_DIR'):
+            config_data.setdefault('output', {})['base_output_dir'] = base_output_dir
+        
+        if naming_convention := os.getenv('CLIMATE_NAMING_CONVENTION'):
+            config_data.setdefault('output', {})['naming_convention'] = naming_convention
+        
+        if create_subdirs := os.getenv('CLIMATE_CREATE_SUBDIRS'):
+            config_data.setdefault('output', {})['create_subdirs'] = create_subdirs.lower() == 'true'
         
         return cls(**config_data)
     

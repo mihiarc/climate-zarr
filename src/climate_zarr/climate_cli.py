@@ -36,7 +36,8 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 # Import our existing modules
 from climate_zarr.stack_nc_to_zarr import stack_netcdf_to_zarr
-from climate_zarr.calculate_county_stats import ModernCountyProcessor
+from climate_zarr.county_processor import ModernCountyProcessor
+from climate_zarr.utils.output_utils import get_output_manager
 from climate_zarr.climate_config import get_config
 
 # Initialize Rich console and Typer app
@@ -399,12 +400,27 @@ def county_stats(
         threshold = 25.4 if variable == "pr" else 32.0 if variable == "tasmax" else 0.0
     
     if not output and interactive:
+        # Use output manager to suggest standardized filename
+        output_manager = get_output_manager()
+        suggested_path = output_manager.get_output_path(
+            variable=variable,
+            region=region,
+            scenario=scenario,
+            threshold=threshold
+        )
         output = Path(Prompt.ask(
             "📊 Output CSV file",
-            default=f"{region}_{variable}_stats.csv"
+            default=str(suggested_path)
         ))
     elif not output:
-        output = Path("county_stats.csv")
+        # Auto-generate standardized output path
+        output_manager = get_output_manager()
+        output = output_manager.get_output_path(
+            variable=variable,
+            region=region,
+            scenario=scenario,
+            threshold=threshold
+        )
     
     # Confirmation for large operations
     if interactive and workers > 8:
@@ -453,8 +469,34 @@ def county_stats(
             chunk_by_county=chunk_by_county
         )
         
-        # Save results
-        results_df.to_csv(output, index=False)
+        # Save results with metadata
+        if 'output_manager' not in locals():
+            output_manager = get_output_manager()
+        
+        metadata = {
+            "processing_info": {
+                "zarr_path": str(zarr_path),
+                "shapefile_path": str(shapefile_path),
+                "variable": variable,
+                "scenario": scenario,
+                "threshold": threshold,
+                "workers": workers,
+                "use_distributed": use_distributed,
+                "chunk_by_county": chunk_by_county
+            },
+            "data_summary": {
+                "counties_processed": len(results_df['county_id'].unique()),
+                "years_analyzed": len(results_df['year'].unique()),
+                "total_records": len(results_df)
+            }
+        }
+        
+        output_manager.save_with_metadata(
+            data=results_df,
+            output_path=output,
+            metadata=metadata,
+            save_method="csv"
+        )
         
         # Display summary
         summary_table = Table(title="📊 Processing Summary")
@@ -644,10 +686,17 @@ def interactive_wizard():
         else:
             threshold = "0"
         
-        # Output file
+        # Output file using standardized naming
+        output_manager = get_output_manager()
+        suggested_output = output_manager.get_output_path(
+            variable=variable,
+            region=stats_region,
+            scenario="historical",
+            threshold=float(threshold)
+        )
         output_csv = Path(questionary.text(
             "📊 Output CSV file name:",
-            default=f"{stats_region}_{variable}_stats.csv"
+            default=str(suggested_output)
         ).ask())
         
         # Performance settings
@@ -704,8 +753,30 @@ def interactive_wizard():
                 chunk_by_county=True
             )
             
-            # Save results
-            results_df.to_csv(output_csv, index=False)
+            # Save results with metadata
+            metadata = {
+                "processing_info": {
+                    "zarr_path": str(zarr_path),
+                    "shapefile_path": str(shapefile_path),
+                    "variable": variable,
+                    "scenario": "historical",
+                    "threshold": float(threshold),
+                    "workers": int(workers),
+                    "use_distributed": use_distributed
+                },
+                "data_summary": {
+                    "counties_processed": len(results_df['county_id'].unique()),
+                    "years_analyzed": len(results_df['year'].unique()),
+                    "total_records": len(results_df)
+                }
+            }
+            
+            output_manager.save_with_metadata(
+                data=results_df,
+                output_path=output_csv,
+                metadata=metadata,
+                save_method="csv"
+            )
             
             # Show success summary
             summary_table = Table(title="📊 Processing Complete!")
