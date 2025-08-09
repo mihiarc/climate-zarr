@@ -1,0 +1,37 @@
+================================================================================
+CLIMATE DATA ANALYSIS SUMMARY REPORT
+================================================================================
+
+Generated: 2025-08-01T16:28:11.034290
+Analysis Period: 2015-2100
+Regions Analyzed: alaska, conus
+Total Records: 217,150
+
+REGIONAL SUMMARIES
+----------------------------------------
+
+ALASKA
+  Records: 2,580
+  Counties: 30
+  Mean Annual Precipitation: 945.6 mm
+  Precipitation Trend: 2.23 mm/year (increasing)
+  Total Change (2015-2100): 18.4%
+
+CONUS
+  Records: 214,570
+  Counties: 2495
+  Mean Annual Precipitation: 956.1 mm
+  Precipitation Trend: 0.71 mm/year (increasing)
+  Total Change (2015-2100): 4.9%
+
+COMPARATIVE ANALYSIS
+----------------------------------------
+Wettest Region: CONUS
+Driest Region: ALASKA
+
+Regional Precipitation Ranking:
+  1. CONUS: 956.1 mm/year
+  2. ALASKA: 945.6 mm/year
+
+Overall US Trend: 1.47 mm/year
+Projected Change (2015-2100): 124.7 mm

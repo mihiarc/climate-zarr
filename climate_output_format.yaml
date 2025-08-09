@@ -1,0 +1,37 @@
+# climate_output_format.yaml
+# YAML configuration for final climate output file format
+# Defines columns, types, and example values for each field
+
+columns:
+  - name: cid2
+    description: FIPS county code
+    type: integer
+    example: 1001
+  - name: year
+    description: Year of record
+    type: integer
+    example: 2025
+  - name: name
+    description: County and state name (e.g., AUTAUGA, AL)
+    type: string
+    example: "AUTAUGA, AL"
+  - name: daysabove1in
+    description: Number of days with precipitation above 1 inch
+    type: integer
+    example: 12
+  - name: daysabove90F
+    description: Number of days with maximum temperature above 90°F
+    type: integer
+    example: 47
+  - name: tmaxavg
+    description: Average daily maximum temperature (°F or °C)
+    type: numeric
+    example: 78.2
+  - name: annual_mean_temp
+    description: Annual mean temperature (°F or °C)
+    type: numeric
+    example: 65.4
+  - name: annual_total_precip
+    description: Annual total precipitation (mm)
+    type: numeric
+    example: 1320.7

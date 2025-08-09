@@ -1,0 +1,157 @@
+# Pipeline Configuration File
+# This file defines the full processing pipeline configuration
+# Based on climate_output_format.yaml specifications
+
+# Processing Configuration
+processing:
+  scenario: "ssp370"  # Climate scenario to process
+  workers: 8          # Number of parallel workers
+  chunk_size: "time=365,lat=180,lon=360"  # Zarr chunking strategy
+  compression: "zstd"  # Compression algorithm
+  compression_level: 5 # Compression level (1-9)
+  
+# Data Sources
+data:
+  input_dir: "data/ssp370"                 # NetCDF input directory
+  regional_counties_dir: "regional_counties"  # County shapefiles directory
+  
+# Output Configuration  
+output:
+  zarr_dir: "climate_outputs/zarr"         # Zarr datasets output
+  stats_dir: "climate_outputs/stats"       # Statistics CSV output
+  
+# Regional Processing
+regions:
+  - name: "conus"
+    description: "Continental United States"
+    bounds: [24.0, 50.0, -125.0, -66.0]  # [lat_min, lat_max, lon_min, lon_max]
+    
+  - name: "alaska" 
+    description: "Alaska"
+    bounds: [54.0, 72.0, -180.0, -129.0]
+    
+  - name: "hawaii"
+    description: "Hawaii"
+    bounds: [18.0, 23.0, -162.0, -154.0]
+    
+  - name: "guam"
+    description: "Guam/Mariana Islands"
+    bounds: [13.0, 21.0, 144.0, 146.0]
+    
+  - name: "puerto_rico"
+    description: "Puerto Rico/US Virgin Islands"
+    bounds: [17.5, 18.6, -67.5, -64.5]
+
+# Climate Variables Configuration
+# Based on climate_output_format.yaml column specifications
+variables:
+  - name: "pr"
+    description: "Precipitation"
+    units: "mm/day" 
+    threshold: 25.4  # 1 inch threshold for days above
+    stats:
+      - "daysabove1in"           # Days with precipitation above 1 inch (25.4mm)
+      - "annual_total_precip"    # Annual total precipitation (mm)
+      - "mean_daily_precip"      # Mean daily precipitation
+      - "max_daily_precip"       # Maximum daily precipitation
+      - "dry_days"               # Number of dry days (< 1mm)
+      - "wet_days"               # Number of wet days (>= 1mm)
+      - "precip_percentile_95"   # 95th percentile precipitation
+      - "precip_percentile_99"   # 99th percentile precipitation
+      
+  - name: "tas"
+    description: "Air Temperature (mean)"
+    units: "°C"
+    threshold: null  # No specific threshold
+    stats:
+      - "annual_mean_temp"       # Annual mean temperature
+      - "temp_range"             # Temperature range (max - min)
+      - "temp_std"               # Temperature standard deviation
+      
+  - name: "tasmax"
+    description: "Daily Maximum Temperature"  
+    units: "°C"
+    threshold: 32.2  # 90°F threshold
+    stats:
+      - "daysabove90F"           # Days with max temperature above 90°F (32.2°C)
+      - "tmaxavg"                # Average daily maximum temperature
+      - "annual_max_temp"        # Annual maximum temperature
+      - "hot_days"               # Number of hot days above threshold
+      
+  - name: "tasmin"
+    description: "Daily Minimum Temperature"
+    units: "°C" 
+    threshold: 0.0   # Freezing point threshold
+    stats:
+      - "tminavg"                # Average daily minimum temperature
+      - "annual_min_temp"        # Annual minimum temperature
+      - "freezing_days"          # Days below freezing (0°C)
+      - "frost_free_period"      # Length of frost-free period
+
+# Expected Output Format (matching climate_output_format.yaml)
+output_format:
+  columns:
+    - name: "cid2"
+      description: "FIPS county code"
+      type: "integer"
+      
+    - name: "year" 
+      description: "Year of record"
+      type: "integer"
+      
+    - name: "name"
+      description: "County and state name (e.g., AUTAUGA, AL)"
+      type: "string"
+      
+    - name: "daysabove1in"
+      description: "Number of days with precipitation above 1 inch"
+      type: "integer"
+      variable: "pr"
+      
+    - name: "daysabove90F"
+      description: "Number of days with maximum temperature above 90°F"
+      type: "integer" 
+      variable: "tasmax"
+      
+    - name: "tmaxavg"
+      description: "Average daily maximum temperature (°F or °C)"
+      type: "numeric"
+      variable: "tasmax"
+      
+    - name: "annual_mean_temp"
+      description: "Annual mean temperature (°F or °C)"
+      type: "numeric"
+      variable: "tas"
+      
+    - name: "annual_total_precip"
+      description: "Annual total precipitation (mm or inches)"
+      type: "numeric"
+      variable: "pr"
+
+# Time Series Configuration
+time_series:
+  start_year: 2015  # Based on available data
+  end_year: 2100    # Based on available data
+  frequency: "daily" # Daily data processing
+  
+# Quality Control
+quality_control:
+  check_data_continuity: true      # Check for gaps in time series
+  validate_spatial_coverage: true  # Validate county coverage
+  check_units: true                # Validate data units
+  min_valid_days_per_year: 350     # Minimum valid days required per year
+
+# Performance Optimization
+performance:
+  parallel_regions: true           # Process regions in parallel
+  parallel_variables: false       # Process variables sequentially to avoid memory issues
+  use_dask_distributed: false     # Use Dask distributed processing
+  memory_limit: "8GB"             # Memory limit per worker
+  temp_dir: null                   # Temporary directory (default: system temp)
+  
+# Logging and Monitoring
+logging:
+  level: "INFO"                    # Logging level (DEBUG, INFO, WARNING, ERROR)
+  log_file: "pipeline.log"         # Log file name
+  progress_bars: true              # Show progress bars
+  time_estimates: true             # Show time estimates

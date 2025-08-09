@@ -1,0 +1,112 @@
+{
+  "file_info": {
+    "filename": "tasmax_ssp370_stats_test.csv",
+    "created_at": "2025-08-04T12:40:41.948991",
+    "file_size_bytes": 137994
+  },
+  "processing_config": {
+    "compression": {
+      "algorithm": "zstd",
+      "level": 5,
+      "shuffle": true,
+      "typesize": 4
+    },
+    "chunking": {
+      "time": 365,
+      "lat": 180,
+      "lon": 360,
+      "auto_optimize": true
+    },
+    "processing": {
+      "n_workers": 4,
+      "memory_limit": "4GB",
+      "use_distributed": false,
+      "chunk_by_county": true,
+      "progress_bar": true
+    },
+    "output": {
+      "base_output_dir": "climate_outputs",
+      "create_subdirs": true,
+      "include_timestamp": false,
+      "naming_convention": "descriptive",
+      "include_metadata": true,
+      "date_format": "%Y%m%d",
+      "organize_by_variable": true,
+      "organize_by_region": true,
+      "organize_by_scenario": true
+    },
+    "regions": {
+      "conus": {
+        "name": "CONUS",
+        "lat_min": 24.0,
+        "lat_max": 50.0,
+        "lon_min": -125.0,
+        "lon_max": -66.0
+      },
+      "alaska": {
+        "name": "Alaska",
+        "lat_min": 54.0,
+        "lat_max": 72.0,
+        "lon_min": -180.0,
+        "lon_max": -129.0
+      },
+      "hawaii": {
+        "name": "Hawaii",
+        "lat_min": 18.0,
+        "lat_max": 23.0,
+        "lon_min": -162.0,
+        "lon_max": -154.0
+      },
+      "guam": {
+        "name": "Guam/MP",
+        "lat_min": 13.0,
+        "lat_max": 21.0,
+        "lon_min": 144.0,
+        "lon_max": 146.0
+      },
+      "puerto_rico": {
+        "name": "Puerto Rico/USVI",
+        "lat_min": 17.5,
+        "lat_max": 18.6,
+        "lon_min": -67.5,
+        "lon_max": -64.5
+      },
+      "pr_vi": {
+        "name": "Puerto Rico/USVI",
+        "lat_min": 17.5,
+        "lat_max": 18.6,
+        "lon_min": -67.5,
+        "lon_max": -64.5
+      },
+      "global": {
+        "name": "Global",
+        "lat_min": -90.0,
+        "lat_max": 90.0,
+        "lon_min": -180.0,
+        "lon_max": 180.0
+      }
+    },
+    "default_output_dir": "output",
+    "temp_dir": null,
+    "zarr_format": 3,
+    "zarr_fallback": true,
+    "prefer_virtual": true,
+    "kerchunk_fallback": true,
+    "enable_caching": true,
+    "cache_dir": null
+  },
+  "processing_info": {
+    "zarr_path": "climate_outputs/zarr/tasmax/ssp370/tasmax_ssp370_test.zarr",
+    "shapefile_path": "tl_2024_us_county/tl_2024_us_county.shp",
+    "variable": "tasmax",
+    "scenario": "ssp370",
+    "threshold": 32.2,
+    "workers": 4,
+    "chunk_by_county": true
+  },
+  "data_summary": {
+    "counties_processed": 299,
+    "years_processed": 3,
+    "total_records": 897
+  }
+}

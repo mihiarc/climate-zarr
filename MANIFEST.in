@@ -1,0 +1,29 @@
+# Include the README
+include README.md
+
+# Include the license file
+include LICENSE
+
+# Include the pyproject.toml
+include pyproject.toml
+
+# Include the CLAUDE.md file
+include CLAUDE.md
+
+# Include type information
+include src/climate_zarr/py.typed
+
+# Include the utils directory
+recursive-include utils *.py *.md
+
+# Exclude development and data files
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .git*
+recursive-exclude data *
+recursive-exclude regional_counties *
+recursive-exclude historical *
+exclude uv.lock
+
+# Optionally exclude tests from distribution
+# recursive-exclude tests *

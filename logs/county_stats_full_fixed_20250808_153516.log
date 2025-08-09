@@ -1,0 +1,265 @@
+🚀 Processing climate county statistics
+Regions: conus, alaska, hawaii, guam, puerto_rico | Scenario: ssp370 | Mode: Multiprocessing
+🚀 Region pool: 5 | County workers/region: 11
+Loading shapefile: regional_counties/hawaii_counties.shp
+Loading shapefile: regional_counties/conus_counties.shp
+Loading shapefile: regional_counties/alaska_counties.shp
+Loading shapefile: regional_counties/guam_counties.shp
+Loading shapefile: regional_counties/puerto_rico_counties.shp
+Opening Zarr dataset: climate_outputs/zarr/pr/hawaii/ssp370/hawaii_ssp370_pr_daily.zarr
+Opening Zarr dataset: climate_outputs/zarr/pr/guam/ssp370/guam_ssp370_pr_daily.zarr
+Opening Zarr dataset: climate_outputs/zarr/pr/alaska/ssp370/alaska_ssp370_pr_daily.zarr
+Opening Zarr dataset: 
+climate_outputs/zarr/pr/puerto_rico/ssp370/puerto_rico_ssp370_pr_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 20, 32) (time, lat, lon) - streaming access
+Processing 4 counties × 86 years = 344 records
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 32, 8) (time, lat, lon) - streaming access
+Processing 5 counties × 86 years = 430 records
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 72, 204) (time, lat, lon) - streaming access
+Processing 30 counties × 86 years = 2580 records
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 4, 12) (time, lat, lon) - streaming access
+Processing 80 counties × 86 years = 6880 records
+Opening Zarr dataset: climate_outputs/zarr/tas/alaska/ssp370/alaska_ssp370_tas_daily.zarr
+Opening Zarr dataset: 
+climate_outputs/zarr/tas/puerto_rico/ssp370/puerto_rico_ssp370_tas_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 72, 204) (time, lat, lon) - streaming access
+Processing 30 counties × 86 years = 2580 records
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 4, 12) (time, lat, lon) - streaming access
+Processing 80 counties × 86 years = 6880 records
+Opening Zarr dataset: climate_outputs/zarr/tasmax/alaska/ssp370/alaska_ssp370_tasmax_daily.zarr
+Opening Zarr dataset: 
+climate_outputs/zarr/tasmax/puerto_rico/ssp370/puerto_rico_ssp370_tasmax_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 72, 204) (time, lat, lon) - streaming access
+Processing 30 counties × 85 years = 2550 records
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 4, 12) (time, lat, lon) - streaming access
+Processing 80 counties × 85 years = 6800 records
+Opening Zarr dataset: climate_outputs/zarr/tasmin/alaska/ssp370/alaska_ssp370_tasmin_daily.zarr
+Opening Zarr dataset: 
+climate_outputs/zarr/tasmin/puerto_rico/ssp370/puerto_rico_ssp370_tasmin_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Zarr shape: (31390, 72, 204) (time, lat, lon) - streaming access
+Processing 30 counties × 86 years = 2580 records
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 4, 12) (time, lat, lon) - streaming access
+Processing 80 counties × 86 years = 6880 records
+⚠️ ALASKA: No data
+⚠️ PUERTO_RICO: No data
+Opening Zarr dataset: climate_outputs/zarr/tas/guam/ssp370/guam_ssp370_tas_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 32, 8) (time, lat, lon) - streaming access
+Processing 5 counties × 86 years = 430 records
+Opening Zarr dataset: climate_outputs/zarr/tas/hawaii/ssp370/hawaii_ssp370_tas_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 20, 32) (time, lat, lon) - streaming access
+Processing 4 counties × 86 years = 344 records
+Opening Zarr dataset: climate_outputs/zarr/tasmax/hawaii/ssp370/hawaii_ssp370_tasmax_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 20, 32) (time, lat, lon) - streaming access
+Processing 4 counties × 85 years = 340 records
+Opening Zarr dataset: climate_outputs/zarr/tasmax/guam/ssp370/guam_ssp370_tasmax_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 32, 8) (time, lat, lon) - streaming access
+Processing 5 counties × 85 years = 425 records
+Opening Zarr dataset: climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr_daily.zarr
+Opening Zarr dataset: climate_outputs/zarr/tasmin/hawaii/ssp370/hawaii_ssp370_tasmin_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 20, 32) (time, lat, lon) - streaming access
+Processing 4 counties × 86 years = 344 records
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+Opening Zarr dataset: climate_outputs/zarr/tas/conus/ssp370/conus_ssp370_tas_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+Opening Zarr dataset: climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp370_tasmax_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['time', 'lat', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 85 years = 264265 records
+Opening Zarr dataset: climate_outputs/zarr/tasmin/guam/ssp370/guam_ssp370_tasmin_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 32, 8) (time, lat, lon) - streaming access
+Processing 5 counties × 86 years = 430 records
+Opening Zarr dataset: climate_outputs/zarr/tasmin/conus/ssp370/conus_ssp370_tasmin_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+⚠️ CONUS: No data
+✅ HAWAII: 344 records
+✅ GUAM: 430 records
+
+✅ Complete: 774 records, 5 counties, 86 years
+Saved: climate_outputs/stats/combined/ssp370_county_stats_full_fixed_20250808_153516.csv (0.1 
+MB)
+
+📊 Sample of generated data:
+ cid2  year    name  daysabove1in  daysabove90F   tmaxavg  annual_mean_temp  
+annual_total_precip
+    0  2015 00000,             13             0 24.874746         24.429792          
+1466.342285
+    0  2015 00000,            135             0 30.005255         29.361980          
+8095.288574
+    0  2016 00000,              6             0 24.818743         24.367754          
+1249.739746
+    0  2016 00000,            114             0 29.193613         28.555693          
+7291.563477
+    0  2017 00000,             13             0 24.886406         24.455994          
+1507.266113
+    0  2017 00000,             71             0 28.937168         28.314140          
+5261.491699
+    0  2018 00000,             13             0 25.032597         24.595078          
+1371.964355
+    0  2018 00000,            122             0 29.641653         29.002672          
+7778.358887
+    0  2019 00000,              3             0 24.639076         24.165068           
+684.846313
+    0  2019 00000,             65             0 29.213362         28.577854          
+4263.425781
+
+📈 Summary statistics:
+             cid2         year  daysabove1in  daysabove90F     tmaxavg  annual_mean_temp  
+annual_total_precip
+count  774.000000   774.000000    774.000000    774.000000  774.000000        774.000000       
+774.000000
+mean     1.777778  2057.500000     37.325581      6.874677   27.343420         27.231932       
+3091.076172
+std      1.315534    24.840435     42.961789     22.766116    3.953768          2.648565       
+2353.485352
+min      0.000000  2015.000000      0.000000      0.000000    0.000000         20.081795       
+376.560303
+25%      1.000000  2036.000000      7.000000      0.000000   25.441167         25.094615       
+1392.580719
+50%      2.000000  2057.500000     19.000000      0.000000   28.370207         28.190147       
+2218.316284
+75%      3.000000  2079.000000     53.000000      0.000000   29.762697         29.402606       
+4078.639587
+max      4.000000  2100.000000    206.000000    184.000000   32.035870         31.342953       
+11458.861328

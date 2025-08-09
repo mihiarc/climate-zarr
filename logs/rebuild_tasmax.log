@@ -1,0 +1,19 @@
+[INFO] Rebuilding Zarr stores
+       scenario: ssp370
+       variables: tasmax
+       regions: conus alaska hawaii guam puerto_rico
+       data base: /home/mihiarc/repos/climate-zarr/data
+       output base: /home/mihiarc/repos/climate-zarr/climate_outputs/zarr
+\n=== TASMAX ===
+[BUILD] tasmax/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp370_
+tasmax_daily.zarr
+Data clipped to CONUS region

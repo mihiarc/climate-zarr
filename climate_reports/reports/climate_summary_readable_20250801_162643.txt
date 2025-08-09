@@ -1,0 +1,61 @@
+================================================================================
+CLIMATE DATA ANALYSIS SUMMARY REPORT
+================================================================================
+
+Generated: 2025-08-01T16:26:42.954239
+Analysis Period: 2015-2100
+Regions Analyzed: puerto_rico, hawaii, alaska, conus, guam
+Total Records: 218,956
+
+REGIONAL SUMMARIES
+----------------------------------------
+
+PUERTO_RICO
+  Records: 1,032
+  Counties: 12
+  Mean Annual Precipitation: 2006.5 mm
+  Precipitation Trend: -4.68 mm/year (decreasing)
+  Total Change (2015-2100): -12.0%
+
+HAWAII
+  Records: 344
+  Counties: 4
+  Mean Annual Precipitation: 1889.7 mm
+  Precipitation Trend: 10.46 mm/year (increasing)
+  Total Change (2015-2100): 48.2%
+
+ALASKA
+  Records: 2,580
+  Counties: 30
+  Mean Annual Precipitation: 945.6 mm
+  Precipitation Trend: 2.23 mm/year (increasing)
+  Total Change (2015-2100): 18.4%
+
+CONUS
+  Records: 214,570
+  Counties: 2495
+  Mean Annual Precipitation: 956.1 mm
+  Precipitation Trend: 0.71 mm/year (increasing)
+  Total Change (2015-2100): 4.9%
+
+GUAM
+  Records: 430
+  Counties: 5
+  Mean Annual Precipitation: 4052.2 mm
+  Precipitation Trend: 8.90 mm/year (increasing)
+  Total Change (2015-2100): 22.1%
+
+COMPARATIVE ANALYSIS
+----------------------------------------
+Wettest Region: GUAM
+Driest Region: ALASKA
+
+Regional Precipitation Ranking:
+  1. GUAM: 4052.2 mm/year
+  2. PUERTO_RICO: 2006.5 mm/year
+  3. HAWAII: 1889.7 mm/year
+  4. CONUS: 956.1 mm/year
+  5. ALASKA: 945.6 mm/year
+
+Overall US Trend: 3.52 mm/year
+Projected Change (2015-2100): 299.5 mm

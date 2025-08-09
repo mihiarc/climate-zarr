@@ -1,0 +1,47 @@
+🚀 Processing climate county statistics
+Regions: conus | Scenario: ssp370 | Mode: Sequential
+Loading shapefile: regional_counties/conus_counties.shp
+Opening Zarr dataset: climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing precipitation data...
+Converting precipitation units from kg m-2 s-1 to mm/day
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+Opening Zarr dataset: climate_outputs/zarr/tas/conus/ssp370/conus_ssp370_tas_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing mean temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+Opening Zarr dataset: 
+climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp370_tasmax_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['time', 'lat', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily maximum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31025, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 85 years = 264265 records
+Opening Zarr dataset: 
+climate_outputs/zarr/tasmin/conus/ssp370/conus_ssp370_tasmin_daily.zarr
+Data dimensions: ['time', 'lat', 'lon']
+Data coordinates: ['lat', 'time', 'lon']
+Setting up spatial reference for rioxarray...
+Processing daily minimum temperature data...
+Converting temperature units from Kelvin to Celsius
+🚀 Using ultra-fast processing (standardized default)
+🚀 Zarr streaming processing (county-level multiprocessing capable)...
+Zarr shape: (31390, 104, 236) (time, lat, lon) - streaming access
+Processing 3109 counties × 86 years = 267374 records
+⚠️ CONUS: No data
+❌ No data processed

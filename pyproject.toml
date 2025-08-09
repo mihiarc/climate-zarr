@@ -1,0 +1,97 @@
+[project]
+name = "climate-zarr"
+version = "0.1.0"
+description = "Interactive CLI toolkit for processing climate data with NetCDF to Zarr conversion and county-level analysis"
+authors = [{name = "Chris Mihiar", email = "chris.mihiar.fs@gmail.com"}]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = ["climate", "zarr", "netcdf", "data-processing", "geospatial", "science", "county"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "xarray>=2024.1.0",
+    "zarr>=2.16.0",
+    "netcdf4>=1.6.0",
+    "rich>=13.0.0",
+    "typer>=0.12.0", # Modern CLI framework with Rich integration
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "dask[distributed]>=2024.1.0",
+    "pandas>=2.0.0",
+    "geopandas>=0.14.0",
+    "rioxarray>=0.15.0",
+    "shapely>=2.0.0",
+    "pyogrio>=0.9.0", # Modern I/O engine (replacement for fiona)
+    # Modern 2025 additions for cloud-native processing
+    "virtualizarr>=1.0.0", # Virtual Zarr stores without copying data
+    "h5py>=3.8.0", # HDF5 support for NetCDF reading
+    "kerchunk>=0.2.5", # Reference file system for archival data
+    "fsspec>=2024.1.0", # Modern file system interface
+    "s3fs>=2024.1.0", # S3 support for cloud storage
+    "intake>=0.7.0", # Data discovery and loading
+    "xarray-datatree>=0.0.13", # Hierarchical data structures
+    "cf-xarray>=0.8.0", # Climate and forecast conventions
+    "cftime>=1.6.0", # Time handling for climate data
+    "bottleneck>=1.3.0", # Fast NumPy operations
+    "numcodecs>=0.12.0", # Enhanced compression codecs
+    "questionary>=2.1.0",
+    "matplotlib>=3.10.3",
+    "seaborn>=0.13.2",
+    "folium>=0.20.0",
+    "rasterstats>=0.20.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "pytest-mock>=3.11.0",
+]
+dev = [
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.5.0",
+]
+
+[project.scripts]
+climate-zarr = "climate_zarr.climate_cli:app"
+
+[project.urls]
+"Homepage" = "https://github.com/mihiarc/climate-zarr"
+"Bug Tracker" = "https://github.com/mihiarc/climate-zarr/issues"
+"Documentation" = "https://github.com/mihiarc/climate-zarr#readme"
+
+[tool.setuptools]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+climate_zarr = ["py.typed"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "rioxarray>=0.19.0",
+]

@@ -1,0 +1,205 @@
+[INFO] Rebuilding Zarr stores
+       scenario: ssp370
+       variables: pr tas tasmax
+       regions: conus alaska hawaii guam puerto_rico
+       data base: /home/mihiarc/repos/climate-zarr/data
+       output base: /home/mihiarc/repos/climate-zarr/climate_outputs/zarr
+\n=== PR ===
+[BUILD] pr/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr
+_daily.zarr
+Data clipped to CONUS region
+[CHECK] pr: lon range [-124.875, -66.125]
+[BUILD] pr/alaska -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/alaska/ssp370/alaska_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/alaska/ssp370/alaska_ssp370_
+pr_daily.zarr
+Data clipped to ALASKA region
+[CHECK] pr: lon range [-179.875, -129.125]
+[BUILD] pr/hawaii -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/hawaii/ssp370/hawaii_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/hawaii/ssp370/hawaii_ssp370_
+pr_daily.zarr
+Data clipped to HAWAII region
+[CHECK] pr: lon range [-161.875, -154.125]
+[BUILD] pr/guam -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/guam/ssp370/guam_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/guam/ssp370/guam_ssp370_pr_d
+aily.zarr
+Data clipped to GUAM region
+[CHECK] pr: lon range [144.125, 145.875]
+[BUILD] pr/puerto_rico -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/puerto_rico/ssp370/puerto_rico_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/puerto_rico/ssp370/puerto_ri
+co_ssp370_pr_daily.zarr
+Data clipped to PUERTO_RICO region
+[CHECK] pr: lon range [-67.375, -64.625]
+\n=== TAS ===
+[BUILD] tas/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/conus/ssp370/conus_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 19856.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/conus/ssp370/conus_ssp370_t
+as_daily.zarr
+Data clipped to CONUS region
+[CHECK] tas: lon range [-124.875, -66.125]
+[BUILD] tas/alaska -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/alaska/ssp370/alaska_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 19856.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/alaska/ssp370/alaska_ssp370
+_tas_daily.zarr
+Data clipped to ALASKA region
+[CHECK] tas: lon range [-179.875, -129.125]
+[BUILD] tas/hawaii -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/hawaii/ssp370/hawaii_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 19856.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/hawaii/ssp370/hawaii_ssp370
+_tas_daily.zarr
+Data clipped to HAWAII region
+[CHECK] tas: lon range [-161.875, -154.125]
+[BUILD] tas/guam -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/guam/ssp370/guam_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 19856.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/guam/ssp370/guam_ssp370_tas
+_daily.zarr
+Data clipped to GUAM region
+[CHECK] tas: lon range [144.125, 145.875]
+[BUILD] tas/puerto_rico -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/puerto_rico/ssp370/puerto_rico_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 19856.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/puerto_rico/ssp370/puerto_r
+ico_ssp370_tas_daily.zarr
+Data clipped to PUERTO_RICO region
+[CHECK] tas: lon range [-67.375, -64.625]
+\n=== TASMAX ===
+[BUILD] tasmax/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/conus/ssp370/conus_ssp37
+0_tasmax_daily.zarr
+Data clipped to CONUS region
+[CHECK] tasmax: lon range [-124.875, -66.125]
+[BUILD] tasmax/alaska -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/alaska/ssp370/alaska_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/alaska/ssp370/alaska_ssp
+370_tasmax_daily.zarr
+Data clipped to ALASKA region
+[CHECK] tasmax: lon range [-179.875, -129.125]
+[BUILD] tasmax/hawaii -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/hawaii/ssp370/hawaii_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/hawaii/ssp370/hawaii_ssp370_tasmax_da
+ily.zarr
+Data clipped to HAWAII region
+[CHECK] tasmax: lon range [-161.875, -154.125]
+[BUILD] tasmax/guam -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/guam/ssp370/guam_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/guam/ssp370/guam_ssp370_tasmax_daily.
+zarr
+Data clipped to GUAM region
+[CHECK] tasmax: lon range [144.125, 145.875]
+[BUILD] tasmax/puerto_rico -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/puerto_rico/ssp370/puerto_rico_ssp370_tasmax_daily.zarr
+Stacking 85 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 85 files
+Total NetCDF size: 19773.0 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tasmax/puerto_rico/ssp370/puerto_rico_ssp370
+_tasmax_daily.zarr
+Data clipped to PUERTO_RICO region
+[CHECK] tasmax: lon range [-67.375, -64.625]
+\n[SUCCESS] Rebuild complete.

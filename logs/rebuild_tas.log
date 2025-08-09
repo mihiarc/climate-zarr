@@ -1,0 +1,12 @@
+[INFO] Rebuilding Zarr stores
+       scenario: ssp370
+       variables: tas
+       regions: conus alaska hawaii guam puerto_rico
+       data base: /home/mihiarc/repos/climate-zarr/data
+       output base: /home/mihiarc/repos/climate-zarr/climate_outputs/zarr
+\n=== TAS ===
+[BUILD] tas/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/tas/conus/ssp370/conus_ssp370_tas_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...

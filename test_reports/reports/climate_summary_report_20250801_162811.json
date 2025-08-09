@@ -1,0 +1,104 @@
+{
+  "generation_info": {
+    "timestamp": "2025-08-01T16:28:11.034290",
+    "regions_analyzed": [
+      "alaska",
+      "conus"
+    ],
+    "total_records": 217150,
+    "analysis_period": "2015-2100"
+  },
+  "regional_summaries": {
+    "alaska": {
+      "data_overview": {
+        "total_records": 2580,
+        "counties": 30,
+        "years_covered": "2015-2100",
+        "data_completeness": "93.8%"
+      },
+      "precipitation_statistics": {
+        "mean_annual_precip_mm": 945.5593647446743,
+        "median_annual_precip_mm": 778.0538330078125,
+        "std_annual_precip_mm": 585.483032599684,
+        "min_annual_precip_mm": 111.414794921875,
+        "max_annual_precip_mm": 2846.947021484375,
+        "mean_daily_precip_mm": 2.5905736006045528,
+        "extreme_precip_days_avg": 2.4976744186046513
+      },
+      "climate_trends": {
+        "precipitation_trend_mm_per_year": 2.2273748153561117,
+        "trend_direction": "increasing",
+        "trend_magnitude": 189.3268593052695,
+        "baseline_vs_endperiod": {
+          "baseline_2015_2030": 856.1430777867635,
+          "end_period_2085_2100": 1013.5427378018697,
+          "percent_change": 18.384737796631377
+        }
+      }
+    },
+    "conus": {
+      "data_overview": {
+        "total_records": 214570,
+        "counties": 2495,
+        "years_covered": "2015-2100",
+        "data_completeness": "93.8%"
+      },
+      "precipitation_statistics": {
+        "mean_annual_precip_mm": 956.1304097660458,
+        "median_annual_precip_mm": 975.0088500976562,
+        "std_annual_precip_mm": 384.3342759145228,
+        "min_annual_precip_mm": 15.72705078125,
+        "max_annual_precip_mm": 2382.9169921875,
+        "mean_daily_precip_mm": 2.6195353691567154,
+        "extreme_precip_days_avg": 4.581544484317472
+      },
+      "climate_trends": {
+        "precipitation_trend_mm_per_year": 0.7074481664908304,
+        "trend_direction": "increasing",
+        "trend_magnitude": 60.133094151720584,
+        "baseline_vs_endperiod": {
+          "baseline_2015_2030": 893.2296848122247,
+          "end_period_2085_2100": 936.9138124079885,
+          "percent_change": 4.890581710229112
+        }
+      }
+    }
+  },
+  "comparative_analysis": {
+    "wettest_region": "conus",
+    "driest_region": "alaska",
+    "regional_precipitation_ranking": [
+      [
+        "conus",
+        956.1304097660458
+      ],
+      [
+        "alaska",
+        945.5593647446743
+      ]
+    ],
+    "coefficient_of_variation_by_region": {
+      "alaska": 0.6191922521520155,
+      "conus": 0.4019684678877278
+    }
+  },
+  "climate_trends": {
+    "overall": {
+      "us_average_trend_mm_per_year": 1.467411490923472,
+      "projected_change_2015_2100": 124.72997672849512,
+      "trend_significance": "significant"
+    }
+  },
+  "extreme_events": {
+    "alaska": {
+      "trend_days_per_year": 0.0229545418809064,
+      "baseline_extreme_days": 1.6583333333333334,
+      "future_extreme_days": 3.2895833333333333
+    },
+    "conus": {
+      "trend_days_per_year": 0.015702861924613436,
+      "baseline_extreme_days": 3.7876753507014027,
+      "future_extreme_days": 4.69308617234469
+    }
+  }
+}

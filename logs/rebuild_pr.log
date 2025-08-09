@@ -1,0 +1,24 @@
+[INFO] Rebuilding Zarr stores
+       scenario: ssp370
+       variables: pr
+       regions: conus alaska hawaii guam puerto_rico
+       data base: /home/mihiarc/repos/climate-zarr/data
+       output base: /home/mihiarc/repos/climate-zarr/climate_outputs/zarr
+\n=== PR ===
+[BUILD] pr/conus -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
+Writing to Zarr format...
+
+✓ Successfully stacked 86 files
+Total NetCDF size: 18842.9 MB
+Output: 
+/home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/conus/ssp370/conus_ssp370_pr_d
+aily.zarr
+Data clipped to CONUS region
+[CHECK] pr: lon range [-124.875, -66.125]
+[BUILD] pr/alaska -> /home/mihiarc/repos/climate-zarr/climate_outputs/zarr/pr/alaska/ssp370/alaska_ssp370_pr_daily.zarr
+Stacking 86 NetCDF files into Zarr
+  Loading NetCDF files...
+Concatenating along 'time' dimension...
