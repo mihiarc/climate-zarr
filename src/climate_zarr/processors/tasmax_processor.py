@@ -8,7 +8,7 @@ import xarray as xr
 from rich.console import Console
 
 from .base_processor import BaseCountyProcessor
-from .processing_strategies import VectorizedStrategy, UltraFastStrategy
+from .processing_strategies import VectorizedStrategy
 from ..utils.data_utils import convert_units
 
 console = Console()
@@ -23,7 +23,6 @@ class TasMaxProcessor(BaseCountyProcessor):
         gdf: gpd.GeoDataFrame,
         scenario: str,
         threshold_temp_c: float = 32.2,  # Default: 90°F converted to Celsius
-        chunk_by_county: bool = True,
         **kwargs
     ) -> pd.DataFrame:
         """Process daily maximum temperature data for all counties.
@@ -33,7 +32,6 @@ class TasMaxProcessor(BaseCountyProcessor):
             gdf: County geometries
             scenario: Scenario name
             threshold_temp_c: Temperature threshold in Celsius for hot days
-            chunk_by_county: Whether to use chunked processing
             **kwargs: Additional parameters
             
         Returns:
@@ -52,8 +50,8 @@ class TasMaxProcessor(BaseCountyProcessor):
         # Standardize coordinates
         tasmax_data = self._standardize_coordinates(tasmax_data)
         
-        # Choose processing strategy
-        strategy = self._select_processing_strategy(gdf, chunk_by_county)
+        # Use optimized VectorizedStrategy for precise geometric processing
+        strategy = VectorizedStrategy()
         
         # Process the data
         return strategy.process(
@@ -65,30 +63,13 @@ class TasMaxProcessor(BaseCountyProcessor):
             n_workers=self.n_workers
         )
     
-    def _select_processing_strategy(self, gdf: gpd.GeoDataFrame, chunk_by_county: bool):
-        """Select processing strategy for daily maximum temperature data.
-        
-        Args:
-            gdf: County geometries
-            chunk_by_county: Whether chunked processing is requested
-            
-        Returns:
-            Selected processing strategy instance
-        """
-        if len(gdf) > 50 or not chunk_by_county:
-            console.print("[cyan]🚀 Using ultra-fast processing (best performance)[/cyan]")
-            return UltraFastStrategy()
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return VectorizedStrategy()
     
     def process_zarr_file(
         self,
         zarr_path: Path,
         gdf: gpd.GeoDataFrame,
         scenario: str = 'historical',
-        threshold_temp_c: float = 32.2,
-        chunk_by_county: bool = True
+        threshold_temp_c: float = 32.2
     ) -> pd.DataFrame:
         """Process a Zarr file containing daily maximum temperature data.
         
@@ -97,7 +78,6 @@ class TasMaxProcessor(BaseCountyProcessor):
             gdf: County geometries
             scenario: Scenario name
             threshold_temp_c: Temperature threshold in Celsius
-            chunk_by_county: Whether to use chunked processing
             
         Returns:
             DataFrame with daily maximum temperature statistics
@@ -117,6 +97,5 @@ class TasMaxProcessor(BaseCountyProcessor):
             data=tasmax_data,
             gdf=gdf,
             scenario=scenario,
-            threshold_temp_c=threshold_temp_c,
-            chunk_by_county=chunk_by_county
+            threshold_temp_c=threshold_temp_c
         ) 
