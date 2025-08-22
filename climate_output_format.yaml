@@ -1,0 +1,56 @@
+# climate_output_format.yaml
+# YAML configuration for final climate output file format
+# Defines columns, types, and example values for each field
+#
+# NOTE: No unit conversions are required. The column names include units
+# (e.g., "1in", "90F") for user clarity, but the actual values stored are
+# simply counts of days meeting those thresholds. Temperature and precipitation
+# values can remain in their original units (Celsius/mm or Fahrenheit/inches).
+
+columns:
+  - name: cid2
+    description: FIPS county code
+    type: integer
+    example: 1001
+  - name: year
+    description: Year of record
+    type: integer
+    example: 2025
+  - name: scenario
+    description: Climate scenario (e.g., historical, ssp126, ssp245, ssp370, ssp585)
+    type: string
+    example: "ssp370"
+  - name: name
+    description: County and state name (e.g., AUTAUGA, AL)
+    type: string
+    example: "AUTAUGA, AL"
+  - name: daysabove1in
+    description: Number of days with precipitation above 1 inch (25.4mm)
+    type: integer
+    unit: days (count)
+    note: Column name includes "1in" for clarity, but value is just a day count
+    example: 12
+  - name: daysabove90F
+    description: Number of days with maximum temperature above 90°F (32.2°C)
+    type: integer
+    unit: days (count)
+    note: Column name includes "90F" for clarity, but value is just a day count
+    example: 47
+  - name: tmaxavg
+    description: Average daily maximum temperature (keep original units)
+    type: numeric
+    unit: degrees (°C or °F as processed)
+    note: No conversion needed, use whatever units the data was processed in
+    example: 78.2
+  - name: annual_mean_temp
+    description: Annual mean temperature (keep original units)
+    type: numeric
+    unit: degrees (°C or °F as processed)
+    note: No conversion needed, use whatever units the data was processed in
+    example: 65.4
+  - name: annual_total_precip
+    description: Annual total precipitation (keep original units)
+    type: numeric
+    unit: mm or inches as processed
+    note: No conversion needed, use whatever units the data was processed in
+    example: 1320.7
