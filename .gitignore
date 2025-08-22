@@ -116,6 +116,14 @@ monitor_processing.py
 *.log
 *.tmp
 
+# Data files - CSV, TXT, and images
+*.csv
+*.txt
+*.png
+# But keep specific documentation files if needed
+!README.txt
+!requirements.txt
+
 # UV lock file (optional - some prefer to include it)
 # uv.lock 
 CLAUDE.md
