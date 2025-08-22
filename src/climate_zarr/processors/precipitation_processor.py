@@ -9,7 +9,8 @@ import xarray as xr
 from rich.console import Console
 
 from .base_processor import BaseCountyProcessor
-from .processing_strategies import VectorizedStrategy, UltraFastStrategy
+from .processing_strategies import VectorizedStrategy
+from .strategy_config import create_processing_plan
 from ..utils.data_utils import convert_units
 
 console = Console()
@@ -24,7 +25,6 @@ class PrecipitationProcessor(BaseCountyProcessor):
         gdf: gpd.GeoDataFrame,
         scenario: str,
         threshold_mm: float = 25.4, # 1 inch
-        chunk_by_county: bool = True,
         **kwargs
     ) -> pd.DataFrame:
         """Process precipitation data for all counties.
@@ -34,7 +34,6 @@ class PrecipitationProcessor(BaseCountyProcessor):
             gdf: County geometries
             scenario: Scenario name
             threshold_mm: Precipitation threshold in mm
-            chunk_by_county: Whether to use chunked processing
             **kwargs: Additional parameters
             
         Returns:
@@ -48,52 +47,33 @@ class PrecipitationProcessor(BaseCountyProcessor):
         # Standardize coordinates
         pr_data = self._standardize_coordinates(pr_data)
         
-        # Choose processing strategy based on dataset size and parameters
-        strategy = self._select_processing_strategy(pr_data, gdf, chunk_by_county)
+        # Create intelligent processing plan with optimal strategy selection
+        console.print("[blue]Creating optimized processing plan...[/blue]")
+        processing_plan = create_processing_plan(
+            data=pr_data,
+            gdf=gdf,
+            variable='pr',
+            scenario=scenario
+        )
         
-        # Process the data
+        # Execute processing with selected strategy
+        strategy = processing_plan['strategy']
         return strategy.process(
             data=pr_data,
             gdf=gdf,
             variable='pr',
             scenario=scenario,
             threshold=threshold_mm,
-            n_workers=self.n_workers
+            n_workers=processing_plan['config'].parallel_workers
         )
     
-    def _select_processing_strategy(
-        self,
-        data: xr.DataArray,
-        gdf: gpd.GeoDataFrame,
-        chunk_by_county: bool
-    ):
-        """Select the best processing strategy based on data characteristics.
-        
-        Args:
-            data: Climate data array
-            gdf: County geometries
-            chunk_by_county: Whether chunked processing is requested
-            
-        Returns:
-            Selected processing strategy instance
-        """
-        # For regional datasets or when ultra-fast processing is preferred, use ultra-fast
-        if len(gdf) > 50 or not chunk_by_county:
-            console.print("[cyan]🚀 Using ultra-fast processing (best performance)[/cyan]")
-            return UltraFastStrategy()
-        
-        # Default to vectorized processing for smaller datasets
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return VectorizedStrategy()
     
     def process_zarr_file(
         self,
         zarr_path: Path,
         gdf: gpd.GeoDataFrame,
         scenario: str = 'historical',
-        threshold_mm: float = 25.4,
-        chunk_by_county: bool = True
+        threshold_mm: float = 25.4
     ) -> pd.DataFrame:
         """Process a Zarr file containing precipitation data.
         
@@ -102,7 +82,6 @@ class PrecipitationProcessor(BaseCountyProcessor):
             gdf: County geometries
             scenario: Scenario name
             threshold_mm: Precipitation threshold in mm
-            chunk_by_county: Whether to use chunked processing
             
         Returns:
             DataFrame with precipitation statistics
@@ -122,6 +101,5 @@ class PrecipitationProcessor(BaseCountyProcessor):
             data=pr_data,
             gdf=gdf,
             scenario=scenario,
-            threshold_mm=threshold_mm,
-            chunk_by_county=chunk_by_county
+            threshold_mm=threshold_mm
         ) 

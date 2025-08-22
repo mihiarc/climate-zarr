@@ -8,7 +8,7 @@ import xarray as xr
 from rich.console import Console
 
 from .base_processor import BaseCountyProcessor
-from .processing_strategies import VectorizedStrategy, UltraFastStrategy
+from .processing_strategies import VectorizedStrategy
 from ..utils.data_utils import convert_units
 
 console = Console()
@@ -22,7 +22,6 @@ class TemperatureProcessor(BaseCountyProcessor):
         data: xr.DataArray,
         gdf: gpd.GeoDataFrame,
         scenario: str,
-        chunk_by_county: bool = True,
         **kwargs
     ) -> pd.DataFrame:
         """Process temperature data for all counties.
@@ -31,7 +30,6 @@ class TemperatureProcessor(BaseCountyProcessor):
             data: Temperature data array
             gdf: County geometries
             scenario: Scenario name
-            chunk_by_county: Whether to use chunked processing
             **kwargs: Additional parameters
             
         Returns:
@@ -45,8 +43,8 @@ class TemperatureProcessor(BaseCountyProcessor):
         # Standardize coordinates
         tas_data = self._standardize_coordinates(tas_data)
         
-        # Choose processing strategy
-        strategy = self._select_processing_strategy(gdf, chunk_by_county)
+        # Use optimized VectorizedStrategy for precise geometric processing
+        strategy = VectorizedStrategy()
         
         # Process the data (no threshold needed for temperature)
         return strategy.process(
@@ -58,30 +56,12 @@ class TemperatureProcessor(BaseCountyProcessor):
             n_workers=self.n_workers
         )
     
-    def _select_processing_strategy(self, gdf: gpd.GeoDataFrame, chunk_by_county: bool):
-        """Select processing strategy for temperature data.
-        
-        Args:
-            gdf: County geometries
-            chunk_by_county: Whether chunked processing is requested
-            
-        Returns:
-            Selected processing strategy instance
-        """
-        # For larger datasets, use ultra-fast strategy
-        if len(gdf) > 50 or not chunk_by_county:
-            console.print("[cyan]🚀 Using ultra-fast processing (best performance)[/cyan]")
-            return UltraFastStrategy()
-        else:
-            console.print("[cyan]Using vectorized processing[/cyan]")
-            return VectorizedStrategy()
     
     def process_zarr_file(
         self,
         zarr_path: Path,
         gdf: gpd.GeoDataFrame,
-        scenario: str = 'historical',
-        chunk_by_county: bool = True
+        scenario: str = 'historical'
     ) -> pd.DataFrame:
         """Process a Zarr file containing temperature data.
         
@@ -89,7 +69,6 @@ class TemperatureProcessor(BaseCountyProcessor):
             zarr_path: Path to Zarr dataset
             gdf: County geometries
             scenario: Scenario name
-            chunk_by_county: Whether to use chunked processing
             
         Returns:
             DataFrame with temperature statistics
@@ -108,6 +87,5 @@ class TemperatureProcessor(BaseCountyProcessor):
         return self.process_variable_data(
             data=tas_data,
             gdf=gdf,
-            scenario=scenario,
-            chunk_by_county=chunk_by_county
+            scenario=scenario
         ) 
