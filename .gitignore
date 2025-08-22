@@ -87,6 +87,35 @@ regional_counties/
 *.nc
 *.zarr/
 
+# County shapefiles
+tl_2024_us_county/
+tl_*_us_county/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
+# Climate outputs (generated data)
+climate_outputs/zarr/
+climate_outputs/stats/
+climate_outputs/reports/
+climate_outputs/temp/
+# Keep the directory structure but ignore data files
+!climate_outputs/.gitkeep
+!climate_outputs/*/
+climate_outputs/**/*.csv
+climate_outputs/**/*.json
+climate_outputs/**/*.zarr/
+climate_outputs/**/*.parquet
+climate_outputs/**/*.nc
+
+# Processing artifacts
+batch_process_county_stats.py
+monitor_processing.py
+*.log
+*.tmp
+
 # UV lock file (optional - some prefer to include it)
 # uv.lock 
 CLAUDE.md
