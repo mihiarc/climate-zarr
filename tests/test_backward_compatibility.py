@@ -115,16 +115,11 @@ class TestImportCompatibility:
         assert tasmin_proc is not None
         
         # Test importing strategies
-        from climate_zarr.processors.processing_strategies import (
-            VectorizedStrategy,
-            UltraFastStrategy
-        )
+        from climate_zarr.processors.processing_strategies import VectorizedStrategy
         
         vectorized = VectorizedStrategy()
-        ultrafast = UltraFastStrategy()
         
         assert vectorized is not None
-        assert ultrafast is not None
     
     def test_utility_imports(self):
         """Test that utility imports work."""

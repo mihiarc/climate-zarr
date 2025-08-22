@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 import tempfile
 from pathlib import Path
 
-from climate_zarr.processors.processing_strategies import VectorizedStrategy, UltraFastStrategy
+from climate_zarr.processors.processing_strategies import VectorizedStrategy
 from climate_zarr.utils.data_utils import calculate_precipitation_stats
 
 
@@ -242,190 +242,22 @@ class TestVectorizedStrategy:
         assert len(results) == 0
 
 
-class TestUltraFastStrategy:
-    """Test the ultra-fast processing strategy."""
-    
-    def test_initialization(self):
-        """Test ultra-fast strategy initialization."""
-        strategy = UltraFastStrategy()
-        
-        assert strategy is not None
-        assert hasattr(strategy, 'process')
-    
-    def test_process_precipitation_data(self, sample_counties, sample_precipitation_data):
-        """Test processing precipitation data with ultra-fast strategy."""
-        strategy = UltraFastStrategy()
-        
-        results = strategy.process(
-            data=sample_precipitation_data,
-            gdf=sample_counties,
-            variable='pr',
-            scenario='test',
-            threshold=25.4,
-            n_workers=2
-        )
-        
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Check required columns
-        required_cols = ['year', 'scenario', 'county_id', 'county_name', 'state']
-        for col in required_cols:
-            assert col in results.columns
-        
-        # Check precipitation-specific columns
-        precip_cols = ['total_annual_precip_mm', 'days_above_threshold', 'dry_days']
-        for col in precip_cols:
-            assert col in results.columns
-        
-        # Should have one row per county per year
-        unique_counties = results['county_id'].nunique()
-        unique_years = results['year'].nunique()
-        assert len(results) == unique_counties * unique_years
-    
-    def test_process_temperature_data(self, sample_counties, sample_temperature_data):
-        """Test processing temperature data with ultra-fast strategy."""
-        strategy = UltraFastStrategy()
-        
-        results = strategy.process(
-            data=sample_temperature_data,
-            gdf=sample_counties,
-            variable='tas',
-            scenario='test',
-            threshold=None,
-            n_workers=2
-        )
-        
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Check temperature-specific columns
-        temp_cols = ['mean_annual_temp_c', 'days_below_freezing', 'growing_degree_days']
-        for col in temp_cols:
-            assert col in results.columns
-    
-    def test_process_tasmax_data(self, sample_counties, sample_temperature_data):
-        """Test processing tasmax data with ultra-fast strategy."""
-        strategy = UltraFastStrategy()
-        
-        # Rename the temperature data to tasmax
-        tasmax_data = sample_temperature_data.rename('tasmax')
-        
-        results = strategy.process(
-            data=tasmax_data,
-            gdf=sample_counties,
-            variable='tasmax',
-            scenario='test',
-            threshold=None,
-            n_workers=2
-        )
-        
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Check tasmax-specific columns
-        tasmax_cols = ['mean_annual_tasmax_c', 'days_above_35c', 'days_above_40c']
-        for col in tasmax_cols:
-            assert col in results.columns
-    
-    def test_process_tasmin_data(self, sample_counties, sample_temperature_data):
-        """Test processing tasmin data with ultra-fast strategy."""
-        strategy = UltraFastStrategy()
-        
-        # Rename the temperature data to tasmin and adjust values
-        tasmin_data = sample_temperature_data.rename('tasmin') - 10  # Make it colder
-        
-        results = strategy.process(
-            data=tasmin_data,
-            gdf=sample_counties,
-            variable='tasmin',
-            scenario='test',
-            threshold=None,
-            n_workers=2
-        )
-        
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Check tasmin-specific columns
-        tasmin_cols = ['mean_annual_tasmin_c', 'cold_days', 'extreme_cold_days']
-        for col in tasmin_cols:
-            assert col in results.columns
-    
-    def test_process_with_invalid_variable(self, sample_counties, sample_precipitation_data):
-        """Test processing with invalid variable."""
-        strategy = UltraFastStrategy()
-        
-        with pytest.raises(ValueError, match="Unsupported variable"):
-            strategy.process(
-                data=sample_precipitation_data,
-                gdf=sample_counties,
-                variable='invalid_var',
-                scenario='test',
-                threshold=25.4,
-                n_workers=2
-            )
-    
-    def test_memory_efficiency(self, sample_counties, sample_precipitation_data):
-        """Test that ultra-fast strategy is memory efficient."""
-        strategy = UltraFastStrategy()
-        
-        # Process data and verify it doesn't hold references
-        results = strategy.process(
-            data=sample_precipitation_data,
-            gdf=sample_counties,
-            variable='pr',
-            scenario='test',
-            threshold=25.4,
-            n_workers=2
-        )
-        
-        # Should return results without holding onto large arrays
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Original data should be unchanged
-        assert sample_precipitation_data.name == 'pr'
-        assert len(sample_precipitation_data.dims) == 3
-
-
 class TestStrategyComparison:
-    """Test comparison between different strategies."""
+    """Test characteristics of the vectorized strategy."""
     
-    def test_strategies_produce_similar_results(self, sample_counties, sample_precipitation_data):
-        """Test that different strategies produce similar results."""
-        # Use smaller dataset for comparison
-        small_data = sample_precipitation_data.isel(time=slice(0, 30))  # 30 days
-        small_counties = sample_counties.iloc[:2]  # 2 counties
-        
+    def test_vectorized_strategy_characteristics(self, sample_counties):
+        """Test characteristics of the vectorized strategy."""
         vectorized = VectorizedStrategy()
-        ultrafast = UltraFastStrategy()
         
-        # Mock the vectorized strategy to use the same implementation as ultra-fast
-        with patch.object(vectorized, 'process', side_effect=ultrafast.process):
-            results_v = vectorized.process(small_data, small_counties, 'pr', 'test', 25.4, 2)
-            results_u = ultrafast.process(small_data, small_counties, 'pr', 'test', 25.4, 2)
-            
-            # Should have same structure
-            assert len(results_v) == len(results_u)
-            assert list(results_v.columns) == list(results_u.columns)
-    
-    def test_strategy_performance_characteristics(self, sample_counties):
-        """Test performance characteristics of strategies."""
-        vectorized = VectorizedStrategy()
-        ultrafast = UltraFastStrategy()
-        
-        # Both strategies should handle different county sizes
+        # Strategy should handle different county sizes
         small_counties = sample_counties.iloc[:1]
         large_counties = pd.concat([sample_counties] * 10, ignore_index=True)
         
         # Should not raise errors with different sizes
         assert vectorized is not None
-        assert ultrafast is not None
         
-        # Both should be able to process the same data types
+        # Should have process method
         assert hasattr(vectorized, 'process')
-        assert hasattr(ultrafast, 'process')
 
 
 class TestStrategyErrorHandling:
@@ -433,7 +265,7 @@ class TestStrategyErrorHandling:
     
     def test_missing_spatial_reference(self, sample_counties):
         """Test handling of data without spatial reference."""
-        strategy = UltraFastStrategy()
+        strategy = VectorizedStrategy()
         
         # Create data without CRS
         time = pd.date_range('2020-01-01', '2020-01-05', freq='D')
@@ -449,10 +281,25 @@ class TestStrategyErrorHandling:
         )
         # Don't add CRS
         
-        # Should handle missing CRS gracefully
+        # The strategy should handle missing CRS gracefully
+        results = strategy.process(da, sample_counties, 'pr', 'test', 25.4, 2)
+        
+        # Should return empty results since clipping will fail without proper CRS
+        assert isinstance(results, pd.DataFrame)
+        assert len(results) == 0  # No successful clips without CRS
+    
+    def test_empty_counties(self, sample_precipitation_data):
+        """Test handling of empty county GeoDataFrame."""
+        strategy = VectorizedStrategy()
+        
+        # Create empty GeoDataFrame
+        empty_gdf = gpd.GeoDataFrame(columns=['county_id', 'county_name', 'state', 'geometry'])
+        empty_gdf = empty_gdf.set_crs('EPSG:4326')
+        
+        # Should handle empty input gracefully
         results = strategy.process(
-            data=da,
-            gdf=sample_counties,
+            data=sample_precipitation_data,
+            gdf=empty_gdf,
             variable='pr',
             scenario='test',
             threshold=25.4,
@@ -460,131 +307,90 @@ class TestStrategyErrorHandling:
         )
         
         assert isinstance(results, pd.DataFrame)
+        assert len(results) == 0
     
-    def test_mismatched_spatial_extents(self, sample_counties):
-        """Test handling of mismatched spatial extents."""
-        strategy = UltraFastStrategy()
+    def test_invalid_variable_type(self, sample_counties, sample_precipitation_data):
+        """Test handling of invalid variable types."""
+        strategy = VectorizedStrategy()
         
-        # Create data that doesn't overlap with counties
-        time = pd.date_range('2020-01-01', '2020-01-05', freq='D')
-        lons = np.array([0.0, 0.5, 1.0])  # Different location
-        lats = np.array([0.0, 0.5, 1.0])  # Different location
-        data = np.random.rand(len(time), len(lats), len(lons))
-        
-        da = xr.DataArray(
-            data,
-            coords={'time': time, 'lat': lats, 'lon': lons},
-            dims=['time', 'lat', 'lon'],
-            name='pr'
-        )
-        da = da.rio.write_crs('EPSG:4326')
-        
-        # Should handle non-overlapping extents
+        # Should handle unknown variable gracefully
         results = strategy.process(
-            data=da,
+            data=sample_precipitation_data,
             gdf=sample_counties,
-            variable='pr',
+            variable='unknown_var',
             scenario='test',
             threshold=25.4,
             n_workers=2
         )
         
-        # Should return empty results or handle gracefully
-        assert isinstance(results, pd.DataFrame)
-    
-    def test_invalid_threshold_values(self, sample_counties, sample_precipitation_data):
-        """Test handling of invalid threshold values."""
-        strategy = UltraFastStrategy()
-        
-        # Test with negative threshold
-        results = strategy.process(
-            data=sample_precipitation_data,
-            gdf=sample_counties,
-            variable='pr',
-            scenario='test',
-            threshold=-10.0,  # Invalid negative threshold
-            n_workers=2
-        )
-        
-        # Should handle invalid threshold gracefully
-        assert isinstance(results, pd.DataFrame)
-        
-        # Test with None threshold for precipitation (should use default)
-        results = strategy.process(
-            data=sample_precipitation_data,
-            gdf=sample_counties,
-            variable='pr',
-            scenario='test',
-            threshold=None,
-            n_workers=2
-        )
-        
+        # Should still process data even with unknown variable
         assert isinstance(results, pd.DataFrame)
 
 
 class TestStrategyDataTypes:
-    """Test strategies with different data types and formats."""
+    """Test strategies with different data types."""
     
-    def test_different_coordinate_names(self, sample_counties):
-        """Test handling of different coordinate names."""
-        strategy = UltraFastStrategy()
+    def test_integer_data(self, sample_counties):
+        """Test processing integer data."""
+        strategy = VectorizedStrategy()
         
-        # Create data with different coordinate names
-        time = pd.date_range('2020-01-01', '2020-01-05', freq='D')
-        x = np.array([-100.0, -99.5, -99.0])
-        y = np.array([40.0, 40.5, 41.0])
-        data = np.random.rand(len(time), len(y), len(x))
+        # Create integer data
+        time = pd.date_range('2020-01-01', '2020-01-10', freq='D')
+        lats = np.linspace(40, 41, 5)
+        lons = np.linspace(-100, -99, 5)  # Match sample county locations
         
-        da = xr.DataArray(
-            data,
-            coords={'time': time, 'y': y, 'x': x},  # Different names
+        int_data = xr.DataArray(
+            np.random.randint(0, 100, size=(len(time), len(lats), len(lons))),
             dims=['time', 'y', 'x'],
+            coords={
+                'time': time,
+                'y': lats,
+                'x': lons
+            },
             name='pr'
-        )
-        da = da.rio.write_crs('EPSG:4326')
+        ).rio.write_crs('EPSG:4326').rio.set_spatial_dims('x', 'y')
         
-        # Should handle different coordinate names
         results = strategy.process(
-            data=da,
-            gdf=sample_counties,
+            data=int_data,
+            gdf=sample_counties[:1],
             variable='pr',
             scenario='test',
-            threshold=25.4,
+            threshold=50,
             n_workers=2
         )
         
         assert isinstance(results, pd.DataFrame)
+        assert len(results) > 0
     
-    def test_different_time_frequencies(self, sample_counties):
-        """Test handling of different time frequencies."""
-        strategy = UltraFastStrategy()
+    def test_float32_data(self, sample_counties):
+        """Test processing float32 data."""
+        strategy = VectorizedStrategy()
         
-        # Create monthly data instead of daily
-        time = pd.date_range('2020-01-01', '2020-12-31', freq='M')
-        lons = np.array([-100.0, -99.5, -99.0])
-        lats = np.array([40.0, 40.5, 41.0])
-        data = np.random.rand(len(time), len(lats), len(lons))
+        # Create float32 data
+        time = pd.date_range('2020-01-01', '2020-01-10', freq='D')
+        lats = np.linspace(40, 41, 5)
+        lons = np.linspace(-100, -99, 5)  # Match sample county locations
         
-        da = xr.DataArray(
-            data,
-            coords={'time': time, 'lat': lats, 'lon': lons},
-            dims=['time', 'lat', 'lon'],
+        float32_data = xr.DataArray(
+            np.random.random((len(time), len(lats), len(lons))).astype(np.float32) * 10,
+            dims=['time', 'y', 'x'],
+            coords={
+                'time': time,
+                'y': lats,
+                'x': lons
+            },
             name='pr'
-        )
-        da = da.rio.write_crs('EPSG:4326')
+        ).rio.write_crs('EPSG:4326').rio.set_spatial_dims('x', 'y')
         
-        # Should handle different time frequencies
         results = strategy.process(
-            data=da,
-            gdf=sample_counties,
+            data=float32_data,
+            gdf=sample_counties[:1],
             variable='pr',
             scenario='test',
-            threshold=25.4,
+            threshold=5.0,
             n_workers=2
         )
         
         assert isinstance(results, pd.DataFrame)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+        assert len(results) > 0
+        assert results['total_annual_precip_mm'].dtype in [np.float32, np.float64]

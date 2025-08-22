@@ -18,8 +18,8 @@ from climate_zarr.processors import (
     TasMaxProcessor,
     TasMinProcessor
 )
-from climate_zarr.processors.processing_strategies import VectorizedStrategy, UltraFastStrategy
-from climate_zarr.utils import convert_units, create_county_raster, get_time_information
+from climate_zarr.processors.processing_strategies import VectorizedStrategy
+from climate_zarr.utils import convert_units, get_time_information
 from climate_zarr.utils.data_utils import (
     calculate_precipitation_stats,
     calculate_temperature_stats,
@@ -172,23 +172,6 @@ class TestUtilities:
         assert set(unique_years) == {2020, 2021}
         assert len(unique_years) == 2
     
-    def test_create_county_raster(self, sample_counties, sample_precipitation_data):
-        """Test county raster creation."""
-        lats = sample_precipitation_data.lat.values
-        lons = sample_precipitation_data.lon.values
-        
-        county_raster = create_county_raster(sample_counties, lats, lons)
-        
-        assert county_raster.shape == (len(lats), len(lons))
-        assert county_raster.dtype == np.uint16
-        
-        # Should have some non-zero values (counties)
-        assert np.any(county_raster > 0)
-        
-        # Number of unique counties should match input
-        unique_counties = np.unique(county_raster[county_raster > 0])
-        assert len(unique_counties) <= len(sample_counties)
-    
     def test_calculate_precipitation_stats(self):
         """Test precipitation statistics calculation."""
         # Create test data
@@ -265,57 +248,6 @@ class TestProcessingStrategies:
         # Should have data for multiple counties
         assert len(results['county_id'].unique()) > 1
     
-    def test_ultrafast_strategy(self, sample_counties, sample_precipitation_data):
-        """Test ultra-fast processing strategy."""
-        strategy = UltraFastStrategy()
-        
-        results = strategy.process(
-            data=sample_precipitation_data,
-            gdf=sample_counties,
-            variable='pr',
-            scenario='test',
-            threshold=25.4,
-            n_workers=2
-        )
-        
-        assert isinstance(results, pd.DataFrame)
-        assert len(results) > 0
-        
-        # Check required columns
-        required_cols = ['year', 'scenario', 'county_id', 'county_name', 'state']
-        for col in required_cols:
-            assert col in results.columns
-        
-        # Should have data for both years
-        assert set(results['year'].unique()) == {2020, 2021}
-    
-    def test_strategies_produce_similar_results(self, sample_counties, sample_precipitation_data):
-        """Test that different strategies produce similar results."""
-        # Use smaller dataset for comparison
-        small_data = sample_precipitation_data.isel(time=slice(0, 30))  # 30 days
-        small_counties = sample_counties.iloc[:2]  # 2 counties
-        
-        vectorized = VectorizedStrategy()
-        ultrafast = UltraFastStrategy()
-        
-        results_v = vectorized.process(small_data, small_counties, 'pr', 'test', 25.4, 2)
-        results_u = ultrafast.process(small_data, small_counties, 'pr', 'test', 25.4, 2)
-        
-        # Should have same number of records
-        assert len(results_v) == len(results_u)
-        
-        # Sort both for comparison
-        results_v = results_v.sort_values(['county_id', 'year']).reset_index(drop=True)
-        results_u = results_u.sort_values(['county_id', 'year']).reset_index(drop=True)
-        
-        # Check that precipitation totals are similar (within 1%)
-        for i in range(len(results_v)):
-            v_precip = results_v.iloc[i]['total_annual_precip_mm']
-            u_precip = results_u.iloc[i]['total_annual_precip_mm']
-            
-            if v_precip > 0:  # Avoid division by zero
-                relative_diff = abs(v_precip - u_precip) / v_precip
-                assert relative_diff < 0.01, f"Precipitation differs by {relative_diff*100:.1f}%"
 
 
 class TestVariableProcessors:
@@ -368,24 +300,21 @@ class TestVariableProcessors:
         for col in temp_cols:
             assert col in results.columns
     
-    def test_processor_strategy_selection(self, sample_counties):
-        """Test that processors select appropriate strategies."""
+    def test_processor_uses_vectorized_strategy(self, sample_counties, sample_precipitation_data):
+        """Test that processors use vectorized strategy."""
         processor = PrecipitationProcessor(n_workers=2)
         
-        # Small dataset should use vectorized
-        small_counties = sample_counties.iloc[:2]
-        strategy = processor._select_processing_strategy(small_counties, chunk_by_county=True)
-        assert isinstance(strategy, VectorizedStrategy)
+        # Process data - should use VectorizedStrategy internally
+        results = processor.process_variable_data(
+            data=sample_precipitation_data,
+            gdf=sample_counties,
+            scenario='test',
+            threshold_mm=25.4
+        )
         
-        # Large dataset should use ultra-fast
-        # Create larger county dataset
-        large_counties = pd.concat([sample_counties] * 20, ignore_index=True)  # 120 counties
-        strategy = processor._select_processing_strategy(large_counties, chunk_by_county=True)
-        assert isinstance(strategy, UltraFastStrategy)
-        
-        # chunk_by_county=False should always use ultra-fast
-        strategy = processor._select_processing_strategy(sample_counties, chunk_by_county=False)
-        assert isinstance(strategy, UltraFastStrategy)
+        # Should produce valid results
+        assert isinstance(results, pd.DataFrame)
+        assert len(results) > 0
 
 
 class TestModernCountyProcessor:

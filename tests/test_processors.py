@@ -15,7 +15,7 @@ from climate_zarr.processors.precipitation_processor import PrecipitationProcess
 from climate_zarr.processors.temperature_processor import TemperatureProcessor
 from climate_zarr.processors.tasmax_processor import TasMaxProcessor
 from climate_zarr.processors.tasmin_processor import TasMinProcessor
-from climate_zarr.processors.processing_strategies import VectorizedStrategy, UltraFastStrategy
+from climate_zarr.processors.processing_strategies import VectorizedStrategy
 
 
 @pytest.fixture
@@ -113,8 +113,8 @@ class TestPrecipitationProcessor:
         # Prepare data
         gdf = processor._standardize_columns(sample_gdf.copy())
         
-        # Mock the strategy to return test data
-        with patch.object(processor, '_select_processing_strategy') as mock_strategy:
+        # Mock the VectorizedStrategy to return test data
+        with patch('climate_zarr.processors.precipitation_processor.VectorizedStrategy') as mock_strategy_class:
             mock_strategy_instance = Mock()
             mock_strategy_instance.process.return_value = pd.DataFrame({
                 'year': [2020, 2020],
@@ -126,14 +126,13 @@ class TestPrecipitationProcessor:
                 'days_above_threshold': [50, 60],
                 'dry_days': [10, 5]
             })
-            mock_strategy.return_value = mock_strategy_instance
+            mock_strategy_class.return_value = mock_strategy_instance
             
             results = processor.process_variable_data(
                 data=sample_xarray_data,
                 gdf=gdf,
                 scenario='test',
-                threshold_mm=25.4,
-                chunk_by_county=True
+                threshold_mm=25.4
             )
             
             # Verify results
@@ -143,35 +142,21 @@ class TestPrecipitationProcessor:
             assert 'days_above_threshold' in results.columns
             assert 'dry_days' in results.columns
             
-            # Verify strategy was called correctly
-            mock_strategy.assert_called_once()
-            # The strategy selection method was called, that's sufficient verification
+            # Verify strategy was instantiated and called correctly
+            mock_strategy_class.assert_called_once()
             mock_strategy_instance.process.assert_called_once()
     
-    def test_strategy_selection(self):
-        """Test processing strategy selection."""
+    def test_uses_vectorized_strategy(self):
+        """Test that processor uses VectorizedStrategy."""
         processor = PrecipitationProcessor()
         
-        # Create test data
-        test_gdf = gpd.GeoDataFrame({
-            'GEOID': ['12345'],
-            'NAME': ['Test County'],
-            'STUSPS': ['TX'],
-            'geometry': [Polygon([(-100, 40), (-99, 40), (-99, 41), (-100, 41)])]
-        })
+        # Verify that the processor always uses VectorizedStrategy now
+        # This is implicitly tested in the process_variable_data test
+        assert hasattr(processor, 'process_variable_data')
         
-        # Test strategy selection method exists
-        assert hasattr(processor, '_select_processing_strategy')
-        
-        # Test with small dataset (should use vectorized)
-        # PrecipitationProcessor._select_processing_strategy expects (data, gdf, chunk_by_county)
-        test_data = xr.DataArray(
-            np.random.rand(5, 3, 3),
-            dims=['time', 'lat', 'lon'],
-            coords={'time': pd.date_range('2020-01-01', periods=5), 'lat': [40, 41, 42], 'lon': [-100, -99, -98]}
-        )
-        strategy = processor._select_processing_strategy(test_data, test_gdf, chunk_by_county=True)
-        assert strategy is not None
+        # The architecture now directly instantiates VectorizedStrategy
+        # instead of having a selection method
+        assert not hasattr(processor, '_select_processing_strategy')
 
 
 class TestTemperatureProcessor:
@@ -186,24 +171,15 @@ class TestTemperatureProcessor:
         assert hasattr(processor, 'prepare_shapefile')
         assert hasattr(processor, 'close')
     
-    def test_strategy_selection(self):
-        """Test temperature processing strategy selection."""
+    def test_uses_vectorized_strategy(self):
+        """Test that processor uses VectorizedStrategy."""
         processor = TemperatureProcessor()
         
-        # Create test data
-        test_gdf = gpd.GeoDataFrame({
-            'GEOID': ['12345'],
-            'NAME': ['Test County'],
-            'STUSPS': ['TX'],
-            'geometry': [Polygon([(-100, 40), (-99, 40), (-99, 41), (-100, 41)])]
-        })
+        # Verify that the processor always uses VectorizedStrategy now
+        assert hasattr(processor, 'process_variable_data')
         
-        # Test strategy selection method exists
-        assert hasattr(processor, '_select_processing_strategy')
-        
-        # Test with small dataset
-        strategy = processor._select_processing_strategy(test_gdf, chunk_by_county=True)
-        assert strategy is not None
+        # The architecture now directly instantiates VectorizedStrategy
+        assert not hasattr(processor, '_select_processing_strategy')
     
     def test_process_variable_data(self, sample_gdf, sample_xarray_data):
         """Test temperature data processing."""
@@ -212,8 +188,8 @@ class TestTemperatureProcessor:
         # Prepare data
         gdf = processor._standardize_columns(sample_gdf.copy())
         
-        # Mock the strategy
-        with patch.object(processor, '_select_processing_strategy') as mock_strategy:
+        # Mock the VectorizedStrategy
+        with patch('climate_zarr.processors.temperature_processor.VectorizedStrategy') as mock_strategy_class:
             mock_strategy_instance = Mock()
             mock_strategy_instance.process.return_value = pd.DataFrame({
                 'year': [2020, 2020],
@@ -225,13 +201,12 @@ class TestTemperatureProcessor:
                 'days_below_freezing': [30, 25],
                 'growing_degree_days': [2500, 2800]
             })
-            mock_strategy.return_value = mock_strategy_instance
+            mock_strategy_class.return_value = mock_strategy_instance
             
             results = processor.process_variable_data(
                 data=sample_xarray_data,
                 gdf=gdf,
-                scenario='test',
-                chunk_by_county=True
+                scenario='test'
             )
             
             # Verify results
@@ -240,6 +215,10 @@ class TestTemperatureProcessor:
             assert 'mean_annual_temp_c' in results.columns
             assert 'days_below_freezing' in results.columns
             assert 'growing_degree_days' in results.columns
+            
+            # Verify strategy was instantiated and called correctly
+            mock_strategy_class.assert_called_once()
+            mock_strategy_instance.process.assert_called_once()
 
 
 class TestTasMaxProcessor:
@@ -254,24 +233,15 @@ class TestTasMaxProcessor:
         assert hasattr(processor, 'prepare_shapefile')
         assert hasattr(processor, 'close')
     
-    def test_strategy_selection(self):
-        """Test tasmax processing strategy selection."""
+    def test_uses_vectorized_strategy(self):
+        """Test that processor uses VectorizedStrategy."""
         processor = TasMaxProcessor()
         
-        # Create test data
-        test_gdf = gpd.GeoDataFrame({
-            'GEOID': ['12345'],
-            'NAME': ['Test County'],
-            'STUSPS': ['TX'],
-            'geometry': [Polygon([(-100, 40), (-99, 40), (-99, 41), (-100, 41)])]
-        })
+        # Test that processor uses VectorizedStrategy
+        assert hasattr(processor, 'process_variable_data')
         
-        # Test strategy selection method exists
-        assert hasattr(processor, '_select_processing_strategy')
-        
-        # Test with small dataset
-        strategy = processor._select_processing_strategy(test_gdf, chunk_by_county=True)
-        assert strategy is not None
+        # The architecture now directly instantiates VectorizedStrategy
+        assert not hasattr(processor, '_select_processing_strategy')
 
 
 class TestTasMinProcessor:
@@ -286,8 +256,8 @@ class TestTasMinProcessor:
         assert hasattr(processor, 'prepare_shapefile')
         assert hasattr(processor, 'close')
     
-    def test_strategy_selection(self):
-        """Test tasmin processing strategy selection."""
+    def test_uses_vectorized_strategy(self):
+        """Test that processor uses VectorizedStrategy."""
         processor = TasMinProcessor()
         
         # Create test data
@@ -298,12 +268,11 @@ class TestTasMinProcessor:
             'geometry': [Polygon([(-100, 40), (-99, 40), (-99, 41), (-100, 41)])]
         })
         
-        # Test strategy selection method exists
-        assert hasattr(processor, '_select_processing_strategy')
+        # Test that processor uses VectorizedStrategy
+        assert hasattr(processor, 'process_variable_data')
         
-        # Test with small dataset
-        strategy = processor._select_processing_strategy(test_gdf, chunk_by_county=True)
-        assert strategy is not None
+        # The architecture now directly instantiates VectorizedStrategy
+        assert not hasattr(processor, '_select_processing_strategy')
 
 
 class TestProcessorErrorHandling:
