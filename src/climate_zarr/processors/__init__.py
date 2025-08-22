@@ -12,7 +12,6 @@ from .tasmax_processor import TasMaxProcessor
 from .tasmin_processor import TasMinProcessor
 from .processing_strategies import (
     VectorizedStrategy,
-    UltraFastStrategy,
 )
 
 __all__ = [
@@ -25,5 +24,4 @@ __all__ = [
     "TasMinProcessor",
     # Processing strategies
     "VectorizedStrategy",
-    "UltraFastStrategy",
 ] 
