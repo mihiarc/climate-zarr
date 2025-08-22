@@ -69,7 +69,6 @@ class ProcessingConfig(BaseModel):
     n_workers: int = Field(default=4, ge=1, description="Number of worker processes")
     memory_limit: str = Field(default="4GB", description="Memory limit per worker")
     use_distributed: bool = Field(default=False, description="Use Dask distributed")
-    chunk_by_county: bool = Field(default=True, description="Process counties in chunks")
     progress_bar: bool = Field(default=True, description="Show progress bars")
 
 

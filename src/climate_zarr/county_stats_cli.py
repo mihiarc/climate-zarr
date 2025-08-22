@@ -58,12 +58,6 @@ def main():
         default=4,
         help="Number of worker processes (default: 4)"
     )
-
-    parser.add_argument(
-        "--no-chunk",
-        action="store_true",
-        help="Disable chunked processing"
-    )
     
     args = parser.parse_args()
     
@@ -113,8 +107,7 @@ def main():
                 gdf=gdf,
                 scenario=args.scenario,
                 variable=args.variable,
-                threshold=args.threshold,
-                chunk_by_county=not args.no_chunk
+                threshold=args.threshold
             )
             
             # Save results with metadata
@@ -125,8 +118,7 @@ def main():
                     "variable": args.variable,
                     "scenario": args.scenario,
                     "threshold": args.threshold,
-                    "workers": args.workers,
-                    "chunk_by_county": not args.no_chunk
+                    "workers": args.workers
                 },
                 "data_summary": {
                     "counties_processed": len(results_df['county_id'].unique()),

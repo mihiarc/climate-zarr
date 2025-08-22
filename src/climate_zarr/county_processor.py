@@ -68,8 +68,7 @@ class ModernCountyProcessor:
         gdf: gpd.GeoDataFrame,
         scenario: str = 'historical',
         variable: str = 'pr',
-        threshold: float = 25.4,
-        chunk_by_county: bool = True
+        threshold: float = 25.4
     ) -> pd.DataFrame:
         """Process Zarr data using the appropriate variable processor.
         
@@ -79,7 +78,6 @@ class ModernCountyProcessor:
             scenario: Scenario name
             variable: Climate variable to process
             threshold: Threshold value for the variable
-            chunk_by_county: Whether to use chunked processing
             
         Returns:
             DataFrame with processed results
@@ -109,30 +107,26 @@ class ModernCountyProcessor:
                 data=data,
                 gdf=gdf,
                 scenario=scenario,
-                threshold_mm=threshold,
-                chunk_by_county=chunk_by_county
+                threshold_mm=threshold
             )
         elif variable == 'tas':
             return processor.process_variable_data(
                 data=data,
                 gdf=gdf,
-                scenario=scenario,
-                chunk_by_county=chunk_by_county
+                scenario=scenario
             )
         elif variable == 'tasmax':
             return processor.process_variable_data(
                 data=data,
                 gdf=gdf,
                 scenario=scenario,
-                threshold_temp_c=threshold,
-                chunk_by_county=chunk_by_county
+                threshold_temp_c=threshold
             )
         elif variable == 'tasmin':
             return processor.process_variable_data(
                 data=data,
                 gdf=gdf,
-                scenario=scenario,
-                chunk_by_county=chunk_by_county
+                scenario=scenario
             )
     
     def get_processor(self, variable: str):

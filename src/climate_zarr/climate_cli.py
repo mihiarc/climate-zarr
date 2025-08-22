@@ -341,7 +341,6 @@ def county_stats(
     threshold: Annotated[Optional[float], typer.Option("--threshold", "-t", help="Threshold value")] = None,
     workers: Annotated[int, typer.Option("--workers", "-w", help="Number of worker processes")] = 4,
     use_distributed: Annotated[bool, typer.Option("--distributed", help="Use Dask distributed processing")] = False,
-    chunk_by_county: Annotated[bool, typer.Option("--chunk-counties", help="Process counties in chunks")] = True,
     interactive: Annotated[bool, typer.Option("--interactive", "-i", help="Use interactive prompts for missing options")] = True,
 ):
     """
@@ -465,8 +464,7 @@ def county_stats(
             gdf=gdf,
             scenario=scenario,
             variable=variable,
-            threshold_mm=threshold,
-            chunk_by_county=chunk_by_county
+            threshold_mm=threshold
         )
         
         # Save results with metadata
@@ -481,8 +479,7 @@ def county_stats(
                 "scenario": scenario,
                 "threshold": threshold,
                 "workers": workers,
-                "use_distributed": use_distributed,
-                "chunk_by_county": chunk_by_county
+                "use_distributed": use_distributed
             },
             "data_summary": {
                 "counties_processed": len(results_df['county_id'].unique()),
@@ -749,8 +746,7 @@ def interactive_wizard():
                 gdf=gdf,
                 scenario="historical",
                 variable=variable,
-                threshold_mm=float(threshold),
-                chunk_by_county=True
+                threshold_mm=float(threshold)
             )
             
             # Save results with metadata
