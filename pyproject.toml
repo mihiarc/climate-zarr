@@ -50,6 +50,7 @@ dependencies = [
     "bottleneck>=1.3.0", # Fast NumPy operations
     "numcodecs>=0.12.0", # Enhanced compression codecs
     "questionary>=2.1.0",
+    "scikit-learn>=1.7.1",
 ]
 
 [project.optional-dependencies]
