@@ -448,9 +448,7 @@ def county_stats(
     try:
         # Create processor
         processor = ModernCountyProcessor(
-            n_workers=workers,
-            memory_limit="4GB",
-            use_distributed=use_distributed
+            n_workers=workers
         )
         
         # Load shapefile
@@ -464,7 +462,7 @@ def county_stats(
             gdf=gdf,
             scenario=scenario,
             variable=variable,
-            threshold_mm=threshold
+            threshold=threshold
         )
         
         # Save results with metadata
