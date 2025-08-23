@@ -9,7 +9,9 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Tuple
 import logging
-from climate_config import get_config, RegionConfig
+import sys
+sys.path.insert(0, '../src')
+from climate_zarr.climate_config import get_config, RegionConfig
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
 from rich.console import Console
 import warnings
@@ -269,8 +271,8 @@ def main():
     
     # Initialize splitter
     splitter = ModernCountySplitter(
-        shapefile_path="tl_2024_us_county/tl_2024_us_county.shp",
-        output_dir="regional_counties"
+        shapefile_path="../tl_2024_us_county/tl_2024_us_county.shp",
+        output_dir="../regional_counties"
     )
     
     # Run the splitting process
