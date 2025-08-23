@@ -217,8 +217,8 @@ class ClimateConfig(BaseModel):
         'hawaii': RegionConfig(
             name='Hawaii',
             lat_min=18.0,
-            lat_max=23.0,
-            lon_min=-162.0,
+            lat_max=29.0,  # Expanded to include Northwestern Hawaiian Islands
+            lon_min=-179.0,  # Expanded to include all of Honolulu County
             lon_max=-154.0
         ),
         'guam': RegionConfig(
